@@ -9,3 +9,5 @@ Summary:
    Rückgaben zu speichern und dann über eine Queue abgearbeitet werden /inkl. ausgegeben wird.
  - Wichtig war auch beim Schließen aller Threads die sockets, serversockets und datagrams zu schließen, außerdem die shell
    und alle Reader und Writer
+
+TEST COMMIT
