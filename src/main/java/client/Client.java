@@ -2,15 +2,12 @@ package client;
 
 import cli.Command;
 import cli.Shell;
-import controller.ClientToClientListener;
 import listener.ClientListenerTCP;
 import channel.ClientToClientChannel;
 import util.Config;
 
 import java.io.*;
-import java.lang.reflect.Array;
 import java.net.*;
-import java.util.Arrays;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -139,8 +136,6 @@ public class Client implements IClientCli, Runnable {
                 System.out.println(e.getMessage());
             }
 
-        } else if(nextMessage.charAt(0)=='>') {
-            out.println("!setLastMsg " + user + "_" +nextMessage);
         }
 
         return nextMessage;
@@ -182,6 +177,8 @@ public class Client implements IClientCli, Runnable {
     public String logout() throws IOException {
         if (isLoggedIn) {
             out.println("!logout " + user);
+            user = null;
+            isLoggedIn = false;
             return null;
         } else {
             return "Not logged in.";

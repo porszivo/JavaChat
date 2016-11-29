@@ -62,9 +62,6 @@ public class MessageControllerTCP implements Runnable {
                     case "!lastMsg":
                         out.println(lastMsg());
                         break;
-                    case "!setLastMsg":
-                        setLastMsg(request.replace("!setLastMsg ", ""));
-                        break;
                     default:
                         out.println("Command does not have the expected format or is unknown!\n" + request);
                         break;
@@ -111,6 +108,7 @@ public class MessageControllerTCP implements Runnable {
 
             PrintWriter socketOut = new PrintWriter(user.getSocket().getOutputStream(), true);
             socketOut.println(message);
+            user.setLastReceivedPrivateMessage(message);
 
         }
         return message;
@@ -150,10 +148,5 @@ public class MessageControllerTCP implements Runnable {
 
     public String authenticate(String username) throws IOException {
         return null;
-    }
-
-    public void setLastMsg(String lastMsg) {
-        ;
-        this.user.setLastMsg(lastMsg.replace(user.getName() + "_>", ""));
     }
 }
