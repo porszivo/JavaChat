@@ -1,6 +1,7 @@
-lib/
-*.jar
+.idea/
 build/
 keys/
+lib/
 reports/
-.idea/
+src/test/
+*.jar
