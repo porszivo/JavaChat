@@ -5,7 +5,7 @@ import util.Config;
 import java.util.ArrayList;
 
 /**
- * Created by Marcel on 07.11.2016.
+ * Created by marce on 07.11.2016.
  */
 public class UserMap {
 

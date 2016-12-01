@@ -1,30 +1,37 @@
 package client;
 
+import cli.Command;
+import cli.Shell;
+import listener.ClientListenerTCP;
+import channel.ClientToClientChannel;
 import util.Config;
 
 import java.io.*;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.Socket;
-import java.util.HashMap;
+import java.net.*;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class Client implements IClientCli, Runnable {
 
     private String componentName;
-
     private Config config;
-    private Config userConfig;
-    private HashMap<String, Boolean> userMap;
 
     private InputStream userRequestStream;
     private PrintStream userResponseStream;
+    private Shell shell;
 
     private int tcpPortNumber;
     private int udpPortNumber;
     private String serverHost;
     private DatagramSocket datagramSocket;
     private Socket clientSocket = null;
+    private ClientToClientChannel privMessageClient;
+    private ClientToClientChannel privMessageServer;
+    private ClientListenerTCP clientListenerTCP;
+
+    private Thread ctcServer = null;
 
     private BufferedReader in;
     private BufferedReader stdIn;
@@ -33,7 +40,9 @@ public class Client implements IClientCli, Runnable {
     private String user = null;
     private Boolean isLoggedIn = false;
 
-    private Boolean closed = false;
+    private Queue<String> messageQueue;
+
+    private ExecutorService pool;
 
     /**
      * @param componentName      the name of the component - represented in the prompt
@@ -45,113 +54,150 @@ public class Client implements IClientCli, Runnable {
                   InputStream userRequestStream, PrintStream userResponseStream) {
         this.componentName = componentName;
         this.config = config;
-        this.userRequestStream = userRequestStream;
-        this.userResponseStream = userResponseStream;
+        this.userRequestStream = userRequestStream; //in
+        this.userResponseStream = userResponseStream; //out
+        this.messageQueue = new ConcurrentLinkedQueue<>();
 
         this.tcpPortNumber = this.config.getInt("chatserver.tcp.port");
         this.udpPortNumber = this.config.getInt("chatserver.udp.port");
         this.serverHost = this.config.getString("chatserver.host");
-
-    }
-
-    @Override
-    public void run() {
         try {
 
             clientSocket = new Socket(serverHost, tcpPortNumber);
             datagramSocket = new DatagramSocket();
+            clientListenerTCP = new ClientListenerTCP(clientSocket, this, messageQueue);
             in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));  // messages received by server
-            stdIn = new BufferedReader(new InputStreamReader(System.in));  // messages client enters
+            stdIn = new BufferedReader(new InputStreamReader(System.in));  // user input
             out = new PrintWriter(clientSocket.getOutputStream(), true);  // send data through the clientSocket
 
-            System.out.println("Welcome!\nPlease !login");
 
-            while (!closed) {
 
-                String input = stdIn.readLine();
+            pool = Executors.newCachedThreadPool();
 
-                String[] cmd = input.split(" ");
-
-                switch (cmd[0]) {
-                    case "!login":
-                        if (cmd.length == 3) {
-                            System.out.println(login(cmd[1], cmd[2]));
-                        } else {
-                            System.out.println("Not enough parameter.");
-                        }
-                        break;
-                    case "!logout":
-                        System.out.println(logout());
-                        break;
-                    case "!send":
-                        System.out.println(send(input));
-                        break;
-                    case "!list":
-                        System.out.println(list());
-                        break;
-                    case "!msg":
-                        break;
-                    case "!lookup":
-                        break;
-                    case "!register":
-                        break;
-                    case "!lastMsg":
-                        break;
-                    case "!exit":
-                        break;
-                    default:
-                        out.println("Command does not have the expected format or is unknown!");
-                        break;
-                }
-
-            }
-
-        } catch (IOException e) {
+        } catch(IOException e) {
             System.out.println(e.getMessage());
         }
 
     }
 
     @Override
+    public void run() {
+
+        shell = new Shell(componentName, userRequestStream, userResponseStream);
+        shell.register(this);
+
+        new Thread(shell).start();
+        new Thread(clientListenerTCP).start();
+
+        while(true) {
+            if(messageQueue.peek() != null) {
+                write(checkOutput(getNextMessage()));
+            }
+        }
+
+    }
+
+    private String checkOutput(String nextMessage) {
+        if (nextMessage.equals("Successfully logged in.")) {
+
+            isLoggedIn = true;
+
+        } else if (nextMessage.equals("Successfully logged out.")) {
+
+            isLoggedIn = false;
+
+        } else if (nextMessage.contains("C2C_Successful_")) {
+
+            if(ctcServer != null) {
+                privMessageServer.close();
+                ctcServer = null;
+            }
+
+            String[] parts = nextMessage.split("_");
+            privMessageServer = new ClientToClientChannel(Integer.parseInt(parts[2]), this, true);
+            ctcServer = new Thread(privMessageServer);
+            ctcServer.start();
+
+            return "Successfully registered address for " + user;
+
+        } else if (nextMessage.equals("!ark")) {
+
+                privMessageClient.close();
+
+        } else if (nextMessage.contains("!msg")) {
+
+            String[] parts = nextMessage.split("_");
+            String[] adr   = parts[1].split(":");
+            try {
+                privMessageClient = new ClientToClientChannel(adr[0], Integer.parseInt(adr[1]), this, false);
+                privMessageClient.send(parts[2]);
+                return parts[2].replace(">", "<");
+            } catch (IOException e) {
+                System.out.println(e.getMessage());
+            }
+
+        }
+
+        return nextMessage;
+    }
+
+    private synchronized String getNextMessage() {
+        try {
+            while (messageQueue.size() == 0) {
+                wait();
+            }
+            return messageQueue.poll();
+        } catch(InterruptedException e) {
+            return null;
+        }
+    }
+
+    public synchronized void addNewMessage(String message) {
+        messageQueue.add(message);
+    }
+
+    public void write(String message) {
+        userResponseStream.println(message);
+    }
+
+    @Command
+    @Override
     public String login(String username, String password) throws IOException {
         if (!isLoggedIn) {
             out.println("!login " + username + " " + password);
-            String response = in.readLine();
-            if (response.equals("Successfully logged in.")) {
-                isLoggedIn = true;
-                user = username;
-            }
-            return response;
+            user = username;
+            return null;
         } else {
             return "Already logged in.";
         }
     }
 
+    @Command
     @Override
     public String logout() throws IOException {
         if (isLoggedIn) {
             out.println("!logout " + user);
-            String response = in.readLine();
-            if (response.equals("Successfully logged out.")) {
-                user = null;
-                isLoggedIn = false;
-            }
-            return response;
+            user = null;
+            isLoggedIn = false;
+            return null;
         } else {
             return "Not logged in.";
         }
     }
 
+    @Command
     @Override
     public String send(String message) throws IOException {
         if(isLoggedIn) {
-            out.println(message.replaceFirst("!send ", "!send " + user + ": "));
-            return message.replaceFirst("!send ", user + ": ");
+            out.println(("!send " + user + ": " + message));
+            return null;
         } else {
             return "Not logged in.";
         }
+
     }
 
+    @Command
     @Override
     public String list() throws IOException {
         String s = "!list";
@@ -161,8 +207,6 @@ public class Client implements IClientCli, Runnable {
                 data.length,
                 InetAddress.getByName(serverHost),
                 udpPortNumber);
-
-        System.out.println(new String(packet.getData()));
 
         datagramSocket.send(packet);
 
@@ -174,39 +218,52 @@ public class Client implements IClientCli, Runnable {
         return new String(packet.getData(), 0, packet.getLength());
     }
 
+    @Command
     @Override
     public String msg(String username, String message) throws IOException {
-        // TODO Auto-generated method stub
+        if(isLoggedIn) out.println("!msg " + username + " > " + user + ": " + message);
+        else return "Not logged in.";
         return null;
     }
 
+    @Command
     @Override
     public String lookup(String username) throws IOException {
-        // TODO Auto-generated method stub
+        if(isLoggedIn) out.println("!lookup " + username);
+        else return "Not logged in.";
         return null;
     }
 
+    @Command
     @Override
     public String register(String privateAddress) throws IOException {
-        // TODO Auto-generated method stub
+        if(isLoggedIn) out.println("!register " + privateAddress);
+        else return "Not logged in.";
         return null;
     }
 
+    @Command
     @Override
     public String lastMsg() throws IOException {
-        // TODO Auto-generated method stub
+        if(isLoggedIn) out.println("!lastMsg");
         return null;
     }
 
+    @Command
     @Override
     public String exit() throws IOException {
-        // TODO Auto-generated method stub
+        logout();
         in.close();
         out.close();
-        stdIn.close();
         clientSocket.close();
-        closed = true;
-        return null;
+        shell.close();
+        if(ctcServer != null) ctcServer.interrupt();
+        userResponseStream.close();
+        userRequestStream.close();
+        user = null;
+        isLoggedIn = false;
+        Thread.currentThread().interrupt();
+        return "Good bye";
     }
 
     /**
@@ -215,7 +272,7 @@ public class Client implements IClientCli, Runnable {
     public static void main(String[] args) {
         Client client = new Client(args[0], new Config("client"), System.in,
                 System.out);
-        client.run();
+        new Thread(client).start();
     }
 
     // --- Commands needed for Lab 2. Please note that you do not have to

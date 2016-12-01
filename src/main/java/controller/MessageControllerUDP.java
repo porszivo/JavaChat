@@ -23,7 +23,7 @@ public class MessageControllerUDP implements Runnable {
     private int port;
     private InetAddress inetAddress;
 
-    public MessageControllerUDP(DatagramSocket datagramSocket, DatagramPacket packet, ExecutorService executorService, UserMap userMap) {
+    public MessageControllerUDP(DatagramSocket datagramSocket, DatagramPacket packet,UserMap userMap) {
         this.packet = packet;
         this.userMap = userMap;
         this.port = packet.getPort();

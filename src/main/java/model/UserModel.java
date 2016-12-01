@@ -1,8 +1,5 @@
 package model;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.net.Socket;
 
 /**
@@ -13,8 +10,10 @@ public class UserModel {
     private String name;
     private String password;
     private boolean isLoggedIn;
-    private ObjectOutputStream out;
     private Socket socket;
+
+    private String adr;
+    private int port;
 
     private String lastReceivedPrivateMessage;
 
@@ -22,16 +21,8 @@ public class UserModel {
         this.name = name;
         this.password = password;
         isLoggedIn = false;
-        lastReceivedPrivateMessage = "No message received!";
-    }
-    
-    public synchronized void setTCPConnection(Socket socket) {
-    	this.socket = socket;
-    	try {
-			out = new ObjectOutputStream(socket.getOutputStream());
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+        port = -1;
+        lastReceivedPrivateMessage = "No message received yet.";
     }
 
     public synchronized String getName() {
@@ -42,6 +33,8 @@ public class UserModel {
         return isLoggedIn;
     }
 
+    public synchronized boolean isRegistered() { return port != -1; }
+
     public boolean checkPassword(String password) {
         if(password.equals(this.password)) {
             isLoggedIn = true;
@@ -49,8 +42,41 @@ public class UserModel {
         return isLoggedIn;
     }
 
+    public synchronized void setSocket(Socket socket) {
+        this.socket = socket;
+    }
+
+    public Socket getSocket() {
+        return socket;
+    }
+
     public synchronized void logout() {
         isLoggedIn = false;
+        socket = null;
+        port = -1;
+    }
+
+    public synchronized void setAddress(String adr) {
+
+        String parts[] = adr.split(":");
+
+        if(parts.length == 2) {
+            this.adr  = parts[0];
+
+            try {
+                this.port = Integer.parseInt(parts[1]);
+            } catch(NumberFormatException e) {
+                System.err.println("ERROR: Port is not an Integer");
+            }
+
+        } else {
+            System.err.println("ERROR: IP address does not have the right format");
+        }
+
+    }
+
+    public synchronized String getAddress() {
+        return adr + ":" + port;
     }
 
     public synchronized void setLastReceivedPrivateMessage(String message) {
@@ -60,15 +86,12 @@ public class UserModel {
     public synchronized String getlastReceivedPrivateMessage() {
         return lastReceivedPrivateMessage;
     }
-    
-    public synchronized void write(String message) {
-    	System.out.println(name + "empfaengt: " + message);
-    	try {
-			out.writeObject(message);
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+
+    public synchronized int getPort() {
+        return port;
     }
-    
+
+    public void setLastMsg(String lastMsg) {
+        this.lastReceivedPrivateMessage = lastMsg;
+    }
 }

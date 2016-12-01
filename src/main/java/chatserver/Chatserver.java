@@ -1,9 +1,11 @@
 package chatserver;
 
+import cli.Command;
 import cli.Shell;
-import listener.UserListenerTCP;
-import listener.UserListenerUDP;
+import listener.ServerListenerTCP;
+import listener.ServerListenerUDP;
 import model.UserMap;
+import model.UserModel;
 import util.Config;
 
 import java.io.IOException;
@@ -11,8 +13,10 @@ import java.io.InputStream;
 import java.io.PrintStream;
 import java.net.DatagramSocket;
 import java.net.ServerSocket;
+import java.net.SocketTimeoutException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class Chatserver implements IChatserverCli, Runnable {
 
@@ -29,8 +33,8 @@ public class Chatserver implements IChatserverCli, Runnable {
 	private int udpPortNumber;
 	private ServerSocket serverSocket;
 	private DatagramSocket datagramSocket;
-    private UserListenerTCP userListenerTCP;
-	private UserListenerUDP userListenerUDP;
+    private ServerListenerTCP serverListenerTCP;
+	private ServerListenerUDP serverListenerUDP;
 
 
 	private ExecutorService executorService;
@@ -69,10 +73,10 @@ public class Chatserver implements IChatserverCli, Runnable {
 			serverSocket = new ServerSocket(tcpPortNumber);
 			datagramSocket = new DatagramSocket(udpPortNumber);
 
-			userListenerTCP = new UserListenerTCP(serverSocket, executorService, userMap);
-			userListenerUDP = new UserListenerUDP(datagramSocket, executorService, userMap);
-			executorService.execute(userListenerTCP);
-			executorService.execute(userListenerUDP);
+			serverListenerTCP = new ServerListenerTCP(serverSocket, executorService, userMap);
+			serverListenerUDP = new ServerListenerUDP(datagramSocket, executorService, userMap);
+			executorService.execute(serverListenerTCP);
+			executorService.execute(serverListenerUDP);
 
 			shell = new Shell(componentName, userRequestStream, userResponseStream);
 			shell.register(this);
@@ -86,9 +90,9 @@ public class Chatserver implements IChatserverCli, Runnable {
 
 		System.out.println("Server is running");
 
-
 	}
 
+	@Command
 	@Override
 	public String users() throws IOException {
 
@@ -96,13 +100,36 @@ public class Chatserver implements IChatserverCli, Runnable {
 
 	}
 
+	@Command
 	@Override
 	public String exit() throws IOException {
 
 		try {
 
+
 			if(serverSocket != null) serverSocket.close();
+			serverListenerUDP.exit();
 			if(datagramSocket != null) datagramSocket.close();
+
+			userRequestStream.close();
+			userResponseStream.close();
+
+			userMap = new UserMap(userConfig);
+
+			executorService.shutdown();
+
+			shell.close();
+
+			try {
+				if(!executorService.awaitTermination(100, TimeUnit.SECONDS)) {
+					executorService.shutdownNow();
+				}
+			} catch (InterruptedException e) {
+				executorService.shutdownNow();
+				Thread.currentThread().interrupt();
+			}
+
+
 
 		} catch (IOException e) {
 
@@ -123,7 +150,6 @@ public class Chatserver implements IChatserverCli, Runnable {
 		Chatserver chatserver = new Chatserver(args[0],
 				new Config("chatserver"), System.in, System.out);
 
-		// TODO: start the chatserver
 		chatserver.run();
 
 	}
