@@ -15,28 +15,23 @@ public class MessageControllerTCP implements Runnable {
     private Socket socket;
     private UserMap userMap;
     private UserModel user;
-    private ArrayList<MessageControllerTCP> messageControllerPool;
-    private BufferedReader in;
-    private PrintWriter out;
 
-    public MessageControllerTCP(Socket socket, UserMap userMap, ArrayList<MessageControllerTCP> messageControllerPool) {
+    public MessageControllerTCP(Socket socket, UserMap userMap) {
         this.socket = socket;
         this.userMap = userMap;
-        this.messageControllerPool = messageControllerPool;
     }
 
     @Override
     public void run() {
         try {
-            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            out = new PrintWriter(socket.getOutputStream(), true);
+            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
             String request;
             while((request = in.readLine()) != null) {
 
 
-                System.out.println(request);
 
-                String[] cmd = request.split(" ");
+                String[] cmd = request.split("\\s");
 
                 switch (cmd[0]) {
                     case "!login":
@@ -51,17 +46,24 @@ public class MessageControllerTCP implements Runnable {
                         send(request);
                         break;
                     case "!msg":
+                        if(cmd.length > 3) {
+                            String message = request.replace("!msg " + cmd[1] + " ", "");
+                            out.println(msg(cmd[1]) + "_" + message);
+                        } else {
+                            out.println("ERROR: Private message has wrong format");
+                        }
                         break;
                     case "!lookup":
+                        out.println(lookup(request.replace("!lookup ", "")));
                         break;
                     case "!register":
+                        out.println(register(request));
                         break;
                     case "!lastMsg":
-                        break;
-                    case "!exit":
+                        out.println(lastMsg());
                         break;
                     default:
-                        out.println("Command does not have the expected format or is unknown!");
+                        out.println("Command does not have the expected format or is unknown!\n" + request);
                         break;
                 }
 
@@ -74,7 +76,6 @@ public class MessageControllerTCP implements Runnable {
     }
 
     public String login(String username, String password) throws IOException {
-    	
         String out = "";
         UserModel user = userMap.getUser(username);
         if(user == null) {
@@ -83,7 +84,7 @@ public class MessageControllerTCP implements Runnable {
             out = "Already logged in.";
         } else if(user.checkPassword(password)) {
             this.user = user;
-            setupTCPConnection();
+            this.user.setSocket(socket);
             out = "Successfully logged in.";
         }
 
@@ -91,15 +92,10 @@ public class MessageControllerTCP implements Runnable {
 
     }
 
-    private synchronized void setupTCPConnection() {
-    	userMap.getUser(user.getName()).setTCPConnection(socket);
-	}
-
-	public String logout() {
+    public String logout() {
         if(user==null) {
             return "Not logged in.";
         } else {
-            unregisterController();
             this.user.logout();
             this.user = null;
             return "Successfully logged out .";
@@ -109,55 +105,48 @@ public class MessageControllerTCP implements Runnable {
     public String send(String message) throws IOException {
         message = message.replace("!send ", "");
         for(UserModel user : userMap.getOnlineUser()) {
-            user.write(message);
+
+            PrintWriter socketOut = new PrintWriter(user.getSocket().getOutputStream(), true);
+            socketOut.println(message);
+            user.setLastReceivedPrivateMessage(message);
+
         }
         return message;
     }
 
-    public String msg(String username, String message) throws IOException {
-        return null;
+    public String msg(String username) throws IOException {
+        String output = lookup(username);
+        if(output.equals("Wrong username or user not registered.")) return "Wrong username or user not reachable.";
+        return "!msg_" + output;
     }
 
     public String lookup(String username) throws IOException {
-        return null;
+        if(userMap.contains(username)) {
+            UserModel user = userMap.getUser(username);
+            if(user.isRegistered()) {
+                return user.getAddress();
+            }
+        }
+        return "Wrong username or user not registered.";
     }
 
     public String register(String privateAddress) throws IOException {
-        return null;
+
+        privateAddress = privateAddress.replace("!register ", "");
+        String[] parts = privateAddress.split(":");
+
+        if(parts.length != 2) return "Address is not in a valid format.";
+        user.setAddress(privateAddress);
+
+        return "C2C_Successful_" + user.getPort();
+
     }
 
     public String lastMsg() throws IOException {
-        String out = "Not logged in.";
-        if(user != null) out = user.getlastReceivedPrivateMessage();
-        return out;
-    }
-
-    public String exit() {
-        if(user != null) {
-            logout();
-        }
-        try {
-            socket.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return null;
+        return user.getlastReceivedPrivateMessage();
     }
 
     public String authenticate(String username) throws IOException {
         return null;
     }
-
-    public synchronized void registerController() {
-        messageControllerPool.add(this);
-    }
-
-    public synchronized void unregisterController() {
-        messageControllerPool.remove(this);
-    }
-
-    public synchronized ArrayList<MessageControllerTCP> getMessageControllerPool() {
-        return messageControllerPool;
-    }
-
 }
