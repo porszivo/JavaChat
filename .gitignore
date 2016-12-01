@@ -1,0 +1,6 @@
+lib/
+*.jar
+build/
+keys/
+reports/
+.idea/
