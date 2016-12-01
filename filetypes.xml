@@ -1,0 +1,8 @@
+<application>
+  <component name="FileTypeManager" version="16">
+    <extensionMap>
+      <mapping ext="rar" type="JAVA" />
+      <mapping pattern="recipe" type="JavaFX" />
+    </extensionMap>
+  </component>
+</application>
