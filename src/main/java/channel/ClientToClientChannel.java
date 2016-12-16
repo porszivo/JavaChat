@@ -1,13 +1,18 @@
 package channel;
 
 import client.Client;
+import org.bouncycastle.util.encoders.Base64;
+import util.Config;
+import util.Keys;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import javax.crypto.Mac;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.security.InvalidKeyException;
+import java.security.Key;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 public class ClientToClientChannel implements Runnable {
 
@@ -16,9 +21,12 @@ public class ClientToClientChannel implements Runnable {
     private Client client;
     private Boolean running = false;
     private Boolean isServer;
+    private Config config;
 
     // Servermode
     public ClientToClientChannel(int port, Client client, Boolean isServer) {
+
+        this.config = new Config("client");
 
         this.client = client;
         this.isServer = isServer;
@@ -59,10 +67,34 @@ public class ClientToClientChannel implements Runnable {
                     PrintWriter writer = new PrintWriter(socket.getOutputStream(), true);
 
                     String request;
+
+                    //Check HMAC
                     if ((request = reader.readLine()) != null) {
-                        client.addNewMessage(request);
-                        writer.println("!ack");
-                        running = false;
+
+                        String[] parts = request.split(" ");
+                        String receivedHMAC = parts[0];
+
+                        byte[] decodedHMAC = Base64.decode(receivedHMAC);
+
+                        try{
+
+                            byte[] computedHMAC = generateHMAC(request.substring(receivedHMAC.length()+1));
+
+                            if(MessageDigest.isEqual(decodedHMAC, computedHMAC)) {
+                                client.addNewMessage(request);
+                                writer.println(addHMAC("!ack"));
+                                running = false;
+                            } else {
+                                client.addNewMessage(request);
+                                writer.println(addHMAC("!tempered"));
+                                running = false;
+                            }
+
+                        } catch (NoSuchAlgorithmException e) {
+                            e.printStackTrace();
+                        } catch (InvalidKeyException e) {
+                            e.printStackTrace();
+                        }
                     }
                 }
                 if(!isServer) {
@@ -78,6 +110,40 @@ public class ClientToClientChannel implements Runnable {
             System.err
                     .println("Error occurred while waiting for/communicating with client: "
                             + e.getMessage());
+        }
+    }
+
+    private String addHMAC(String message) throws IOException, NoSuchAlgorithmException, InvalidKeyException {
+
+        Key key = Keys.readSecretKey(new File(config.getString("hmac.key")));
+
+        byte[] hashMac = generateHMAC(message);
+
+        if(hashMac == null) {
+            return message;
+        }
+
+        byte[] encryptedMessage = Base64.encode(hashMac);
+
+        return encryptedMessage.toString() + " " + message;
+
+    }
+
+    private byte[] generateHMAC(String message) throws IOException, NoSuchAlgorithmException, InvalidKeyException {
+
+        Key key = Keys.readSecretKey(new File(config.getString("hmac.key")));
+
+        try {
+            Mac hMac = Mac.getInstance("HmacSHA256");
+            hMac.init(key);
+            hMac.update(message.getBytes());
+            byte[] hashMac = hMac.doFinal();
+
+            return hashMac;
+
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+            return null;
         }
     }
 

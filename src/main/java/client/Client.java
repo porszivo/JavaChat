@@ -1,13 +1,22 @@
 package client;
 
+import channel.ClientToClientChannel;
 import cli.Command;
 import cli.Shell;
 import listener.ClientListenerTCP;
-import channel.ClientToClientChannel;
+import org.bouncycastle.util.encoders.Base64;
 import util.Config;
+import util.Keys;
 
+import javax.crypto.Mac;
 import java.io.*;
-import java.net.*;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.Socket;
+import java.security.InvalidKeyException;
+import java.security.Key;
+import java.security.NoSuchAlgorithmException;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -120,25 +129,64 @@ public class Client implements IClientCli, Runnable {
 
             return "Successfully registered address for " + user;
 
-        } else if (nextMessage.equals("!ark")) {
+        } else if (nextMessage.equals("!ack")) { //Schreibfehler gewesen: Hattest !ark statt !ack
 
                 privMessageClient.close();
 
         } else if (nextMessage.contains("!msg")) {
 
+            //"!msg " + username + " > " + user + ": " + message)
             String[] parts = nextMessage.split("_");
             String[] adr   = parts[1].split(":");
             try {
+                //sign Message with HMAC
+                String encryptedMessage = addHMAC(parts[2]);
                 privMessageClient = new ClientToClientChannel(adr[0], Integer.parseInt(adr[1]), this, false);
-                privMessageClient.send(parts[2]);
-                return parts[2].replace(">", "<");
+                privMessageClient.send(encryptedMessage);
+                return encryptedMessage.replace(">", "<");
             } catch (IOException e) {
+                System.out.println(e.getMessage());
+            } catch (InvalidKeyException e) {
+                System.out.println(e.getMessage());
+            } catch (NoSuchAlgorithmException e){
                 System.out.println(e.getMessage());
             }
 
         }
 
         return nextMessage;
+    }
+
+    private String addHMAC(String message) throws IOException, NoSuchAlgorithmException, InvalidKeyException {
+
+        byte[] hashMac = generateHMAC(message);
+
+        if(hashMac == null) {
+            return message;
+        }
+
+        byte[] encryptedMessage = Base64.encode(hashMac);
+
+        return encryptedMessage.toString() + " " + message;
+
+    }
+
+    private byte[] generateHMAC(String message) throws IOException, NoSuchAlgorithmException, InvalidKeyException {
+
+        Key key = Keys.readSecretKey(new File(config.getString("hmac.key")));
+
+        try {
+            Mac hMac = Mac.getInstance("HmacSHA256");
+            hMac.init(key);
+            hMac.update(message.getBytes());
+            byte[] hashMac = hMac.doFinal();
+
+            return hashMac;
+
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     private synchronized String getNextMessage() {
