@@ -39,6 +39,11 @@ public class MessageControllerTCP implements Runnable {
                             out.println(login(cmd[1], cmd[2]));
                         }
                         break;
+                    case "!authenticate":
+                        if(cmd.length == 3){
+                            out.println(authenticate(cmd[1], cmd[2]));
+                        }
+                        break;
                     case "!logout":
                         out.println(logout());
                         break;
@@ -146,7 +151,7 @@ public class MessageControllerTCP implements Runnable {
         return user.getlastReceivedPrivateMessage();
     }
 
-    public String authenticate(String username) throws IOException {
+    public String authenticate(String username, String clientChallenge) throws IOException {
         return null;
     }
 }

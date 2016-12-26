@@ -5,6 +5,7 @@ import cli.Shell;
 import listener.ClientListenerTCP;
 import channel.ClientToClientChannel;
 import util.Config;
+import util.Keys;
 
 import java.io.*;
 import java.net.*;
@@ -278,9 +279,21 @@ public class Client implements IClientCli, Runnable {
     // --- Commands needed for Lab 2. Please note that you do not have to
     // implement them for the first submission. ---
 
+    @Command
     @Override
     public String authenticate(String username) throws IOException {
-        // TODO Auto-generated method stub
+        if(isLoggedIn && !username.isEmpty()) {
+
+           // Keys.readPrivatePEM(new File())
+
+            out.println("!authenticate " + username);
+
+        }
+        else {
+            return "not logged in";
+
+        }
+
         return null;
     }
 
