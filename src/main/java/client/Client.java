@@ -1,14 +1,19 @@
 package client;
 
+import channel.Base64Channel;
+import channel.IChannel;
+import channel.RsaChannel;
 import cli.Command;
 import cli.Shell;
 import listener.ClientListenerTCP;
 import channel.ClientToClientChannel;
+import org.bouncycastle.util.encoders.Base64;
 import util.Config;
 import util.Keys;
 
 import java.io.*;
 import java.net.*;
+import java.security.SecureRandom;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -45,6 +50,8 @@ public class Client implements IClientCli, Runnable {
 
     private ExecutorService pool;
 
+    private RsaChannel channel;
+
     /**
      * @param componentName      the name of the component - represented in the prompt
      * @param config             the configuration to use
@@ -71,9 +78,11 @@ public class Client implements IClientCli, Runnable {
             stdIn = new BufferedReader(new InputStreamReader(System.in));  // user input
             out = new PrintWriter(clientSocket.getOutputStream(), true);  // send data through the clientSocket
 
+            channel = new RsaChannel(clientSocket);
 
 
             pool = Executors.newCachedThreadPool();
+
 
         } catch(IOException e) {
             System.out.println(e.getMessage());
@@ -282,19 +291,35 @@ public class Client implements IClientCli, Runnable {
     @Command
     @Override
     public String authenticate(String username) throws IOException {
-        if(isLoggedIn && !username.isEmpty()) {
 
-           // Keys.readPrivatePEM(new File())
 
-            out.println("!authenticate " + username);
 
-        }
-        else {
-            return "not logged in";
+            byte[] message = ("!authenticate " + username + " ").getBytes();
+            byte[] encodedClientChallenge = generate32ByteRandomNumber();
 
-        }
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            outputStream.write(message);
+            outputStream.write(encodedClientChallenge);
+            byte messageToEncrypt[] = outputStream.toByteArray();
+
+            channel.setPublicKey(new Config("client").getString("keys.dir") + "/chatserver.pub.pem");
+            channel.send(messageToEncrypt);
+
+
+
 
         return null;
+    }
+
+    private byte[] generate32ByteRandomNumber(){
+
+        // generates a 32 byte secure random number
+        SecureRandom secureRandom = new SecureRandom();
+        final byte[] number = new byte[32];
+        secureRandom.nextBytes(number);
+
+        return Base64.encode(number);
+
     }
 
 }

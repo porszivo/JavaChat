@@ -1,7 +1,11 @@
 package controller;
 
+import channel.IChannel;
+import channel.RsaChannel;
 import model.UserMap;
 import model.UserModel;
+import org.bouncycastle.util.encoders.Base64;
+import util.Config;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -15,6 +19,7 @@ public class MessageControllerTCP implements Runnable {
     private Socket socket;
     private UserMap userMap;
     private UserModel user;
+    private RsaChannel channel;
 
     public MessageControllerTCP(Socket socket, UserMap userMap) {
         this.socket = socket;
@@ -24,15 +29,18 @@ public class MessageControllerTCP implements Runnable {
     @Override
     public void run() {
         try {
-            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-            String request;
-            while((request = in.readLine()) != null) {
+            channel = new RsaChannel(socket);
+            channel.setPrivateKey(new Config("chatserver").getString("keys.dir") + "/chatserver.pem");
+            //BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            //PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+            //String request;
+            while (true) {
 
-
+                String request = new String(channel.receive());
 
                 String[] cmd = request.split("\\s");
 
+              /*
                 switch (cmd[0]) {
                     case "!login":
                         if(cmd.length == 3) {
@@ -68,15 +76,16 @@ public class MessageControllerTCP implements Runnable {
                         out.println(lastMsg());
                         break;
                     default:
-                        out.println("Command does not have the expected format or is unknown!\n" + request);
+                        out.println("Command does not have the expected format or is unknown!\n" );//+ request);
                         break;
                 }
-
+*/
             }
 
         } catch (IOException e) {
             e.getMessage();
         }
+
 
     }
 
