@@ -3,19 +3,30 @@ package nameserver;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.rmi.AlreadyBoundException;
+import java.rmi.RemoteException;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
+import java.rmi.server.UnicastRemoteObject;
+import java.util.HashMap;
 
+import nameserver.exceptions.AlreadyRegisteredException;
+import nameserver.exceptions.InvalidDomainException;
 import util.Config;
 
 /**
  * Please note that this class is not needed for Lab 1, but will later be used
  * in Lab 2. Hence, you do not have to implement it for the first submission.
  */
-public class Nameserver implements INameserverCli, Runnable {
+public class Nameserver implements INameserverCli, Runnable, INameserver {
 
 	private String componentName;
 	private Config config;
 	private InputStream userRequestStream;
 	private PrintStream userResponseStream;
+
+	private Registry registry;
+	private HashMap<String, INameserver> nsMap;
 
 	/**
 	 * @param componentName
@@ -34,12 +45,23 @@ public class Nameserver implements INameserverCli, Runnable {
 		this.userRequestStream = userRequestStream;
 		this.userResponseStream = userResponseStream;
 
-		// TODO
+		nsMap = new HashMap<>();
 	}
 
 	@Override
 	public void run() {
-		// TODO
+		try {
+			registry = LocateRegistry.createRegistry(config.getInt("registry.port"));
+
+			Nameserver remote = (Nameserver) UnicastRemoteObject.exportObject(this, 0);
+
+			registry.bind(config.getString("rood_id"), remote);
+
+		} catch (RemoteException e) {
+			System.err.println("Error while starting");
+		} catch (AlreadyBoundException e) {
+			System.err.println("Error while binding");
+		}
 	}
 
 	@Override
@@ -71,4 +93,23 @@ public class Nameserver implements INameserverCli, Runnable {
 		// TODO: start the nameserver
 	}
 
+	@Override
+	public void registerUser(String username, String address) throws RemoteException, AlreadyRegisteredException, InvalidDomainException {
+
+	}
+
+	@Override
+	public INameserverForChatserver getNameserver(String zone) throws RemoteException {
+		return null;
+	}
+
+	@Override
+	public String lookup(String username) throws RemoteException {
+		return null;
+	}
+
+	@Override
+	public void registerNameserver(String domain, INameserver nameserver, INameserverForChatserver nameserverForChatserver) throws RemoteException, AlreadyRegisteredException, InvalidDomainException {
+
+	}
 }

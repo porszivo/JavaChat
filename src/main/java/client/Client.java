@@ -131,7 +131,7 @@ public class Client implements IClientCli, Runnable {
 
         } else if (nextMessage.equals("!ack")) { //Schreibfehler gewesen: Hattest !ark statt !ack
 
-                privMessageClient.close();
+            privMessageClient.close();
 
         } else if (nextMessage.contains("!msg")) {
 

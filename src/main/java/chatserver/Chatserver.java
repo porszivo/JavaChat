@@ -6,6 +6,7 @@ import listener.ServerListenerTCP;
 import listener.ServerListenerUDP;
 import model.UserMap;
 import model.UserModel;
+import nameserver.INameserverForChatserver;
 import util.Config;
 
 import java.io.IOException;
@@ -14,6 +15,10 @@ import java.io.PrintStream;
 import java.net.DatagramSocket;
 import java.net.ServerSocket;
 import java.net.SocketTimeoutException;
+import java.rmi.NotBoundException;
+import java.rmi.RemoteException;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -24,6 +29,7 @@ public class Chatserver implements IChatserverCli, Runnable {
 
 	private Config config;
 	private Config userConfig;
+	private Config nsConfig;
 	private UserMap userMap;
 
 	private InputStream userRequestStream;
@@ -40,6 +46,9 @@ public class Chatserver implements IChatserverCli, Runnable {
 	private ExecutorService executorService;
 	private Shell shell;
 
+	/** Add for Lab2 */
+	private INameserverForChatserver rootNameserver;
+
 	/**
 	 * @param componentName
 	 *            the name of the component - represented in the prompt
@@ -55,6 +64,7 @@ public class Chatserver implements IChatserverCli, Runnable {
 		this.componentName = componentName;
 		this.config = config;
 		this.userConfig = new Config("user");
+		this.nsConfig = new Config("ns-root");
 		userMap = new UserMap(userConfig);
 
 		this.userRequestStream = userRequestStream;
@@ -86,6 +96,18 @@ public class Chatserver implements IChatserverCli, Runnable {
 			System.out.println("Exception caught when trying to listen on port "
 					+ " or listening for a connection");
 			System.out.println(e.getMessage());
+		}
+
+		try {
+			Registry registry = LocateRegistry.getRegistry(nsConfig.getString("registry.host"),
+					nsConfig.getInt("registry.port"));
+
+			rootNameserver = (INameserverForChatserver) registry.lookup(nsConfig.getString("root_id"));
+
+		} catch(RemoteException e) {
+			System.err.println("Error while obtaining registry/server-remote-object.");
+		} catch(NotBoundException e) {
+			System.err.println("Error while looking for server-remote-object.");
 		}
 
 		System.out.println("Server is running");
