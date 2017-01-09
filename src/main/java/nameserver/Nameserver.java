@@ -4,12 +4,16 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.rmi.AlreadyBoundException;
+import java.rmi.NotBoundException;
+import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
+import java.util.ArrayList;
 import java.util.HashMap;
 
+import cli.Shell;
 import nameserver.exceptions.AlreadyRegisteredException;
 import nameserver.exceptions.InvalidDomainException;
 import util.Config;
@@ -26,7 +30,15 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 	private PrintStream userResponseStream;
 
 	private Registry registry;
-	private HashMap<String, INameserver> nsMap;
+	private ArrayList<INameserver> serverList;
+
+	private String rmiHost;
+	private int rmiPort;
+	private String bindingName;
+	private boolean root;
+	private String domain;
+
+	private Shell shell;
 
 	/**
 	 * @param componentName
@@ -45,29 +57,57 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 		this.userRequestStream = userRequestStream;
 		this.userResponseStream = userResponseStream;
 
-		nsMap = new HashMap<>();
+		serverList = new ArrayList<>();
+		rmiHost = config.getString("registry.host");
+		rmiPort = config.getInt("registry.port");
+		bindingName = config.getString("root_id");
+
+		if(!config.listKeys().contains("domain")) {
+			root = true;
+			domain = "root";
+		} else {
+			root = false;
+			domain = config.getString("domain");
+		}
+
 	}
 
 	@Override
 	public void run() {
 		try {
-			registry = LocateRegistry.createRegistry(config.getInt("registry.port"));
-
-			Nameserver remote = (Nameserver) UnicastRemoteObject.exportObject(this, 0);
-
-			registry.bind(config.getString("rood_id"), remote);
-
+			registry = LocateRegistry.createRegistry(rmiPort);
+			INameserver remote = (INameserver) UnicastRemoteObject.exportObject(this, 0);
+			registry.bind(bindingName, remote);
 		} catch (RemoteException e) {
 			System.err.println("Error while starting");
+			e.printStackTrace();
 		} catch (AlreadyBoundException e) {
 			System.err.println("Error while binding");
 		}
+
+		if(!domain.equals("root")) {
+			Registry rootRegistry = null;
+			try {
+				rootRegistry = LocateRegistry.getRegistry(rmiHost, rmiPort);
+				INameserver server = (INameserver) rootRegistry.lookup(bindingName);
+			} catch (RemoteException e) {
+				System.err.println("Error while starting");
+				e.printStackTrace();
+			} catch (NotBoundException e) {
+				System.err.println("Error while looking for server-remote-object.");
+			}
+		}
+
+		shell = new Shell(componentName, userRequestStream, userResponseStream);
+		shell.register(this);
 	}
 
 	@Override
 	public String nameservers() throws IOException {
-		// TODO Auto-generated method stub
-		return null;
+		String ret = "";
+		for(INameserver ns : serverList) {
+		}
+		return ret;
 	}
 
 	@Override
@@ -91,6 +131,7 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 		Nameserver nameserver = new Nameserver(args[0], new Config(args[0]),
 				System.in, System.out);
 		// TODO: start the nameserver
+		new Thread(nameserver).start();
 	}
 
 	@Override
