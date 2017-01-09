@@ -1,16 +1,18 @@
 package client;
 
-import channel.Base64Channel;
+import channel.AesEncryption;
 import channel.IChannel;
-import channel.RsaChannel;
+import channel.RsaEncryption;
 import cli.Command;
 import cli.Shell;
 import listener.ClientListenerTCP;
 import channel.ClientToClientChannel;
 import org.bouncycastle.util.encoders.Base64;
 import util.Config;
-import util.Keys;
 
+import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 import java.net.*;
 import java.security.SecureRandom;
@@ -43,6 +45,7 @@ public class Client implements IClientCli, Runnable {
     private BufferedReader stdIn;
     private PrintWriter out;
 
+
     private String user = null;
     private Boolean isLoggedIn = false;
 
@@ -50,7 +53,9 @@ public class Client implements IClientCli, Runnable {
 
     private ExecutorService pool;
 
-    private RsaChannel channel;
+    private IChannel channel;
+    private String encodedClientChallenge;
+
 
     /**
      * @param componentName      the name of the component - represented in the prompt
@@ -71,20 +76,20 @@ public class Client implements IClientCli, Runnable {
         this.serverHost = this.config.getString("chatserver.host");
         try {
 
+
             clientSocket = new Socket(serverHost, tcpPortNumber);
+            channel = new RsaEncryption(clientSocket);
             datagramSocket = new DatagramSocket();
-            clientListenerTCP = new ClientListenerTCP(clientSocket, this, messageQueue);
+            clientListenerTCP = new ClientListenerTCP(channel, this, messageQueue);
             in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));  // messages received by server
             stdIn = new BufferedReader(new InputStreamReader(System.in));  // user input
             out = new PrintWriter(clientSocket.getOutputStream(), true);  // send data through the clientSocket
-
-            channel = new RsaChannel(clientSocket);
 
 
             pool = Executors.newCachedThreadPool();
 
 
-        } catch(IOException e) {
+        } catch (IOException e) {
             System.out.println(e.getMessage());
         }
 
@@ -99,15 +104,29 @@ public class Client implements IClientCli, Runnable {
         new Thread(shell).start();
         new Thread(clientListenerTCP).start();
 
-        while(true) {
-            if(messageQueue.peek() != null) {
-                write(checkOutput(getNextMessage()));
+        while (true) {
+            if (messageQueue.peek() != null) {
+                //write(
+                checkOutput(getNextMessage());
             }
         }
 
     }
 
-    private String checkOutput(String nextMessage) {
+    private void checkOutput(String nextMessage) {
+
+        String[] cmd = nextMessage.split("\\s");
+
+        switch (cmd[0]) {
+            case "!ok":
+                //System.out.println(cmd.length);
+
+                ok(cmd[1], cmd[2], cmd[3], cmd[4]);
+
+                break;
+        }
+
+            /*
         if (nextMessage.equals("Successfully logged in.")) {
 
             isLoggedIn = true;
@@ -149,6 +168,7 @@ public class Client implements IClientCli, Runnable {
         }
 
         return nextMessage;
+        */
     }
 
     private synchronized String getNextMessage() {
@@ -157,7 +177,7 @@ public class Client implements IClientCli, Runnable {
                 wait();
             }
             return messageQueue.poll();
-        } catch(InterruptedException e) {
+        } catch (InterruptedException e) {
             return null;
         }
     }
@@ -198,7 +218,7 @@ public class Client implements IClientCli, Runnable {
     @Command
     @Override
     public String send(String message) throws IOException {
-        if(isLoggedIn) {
+        if (isLoggedIn) {
             out.println(("!send " + user + ": " + message));
             return null;
         } else {
@@ -231,7 +251,7 @@ public class Client implements IClientCli, Runnable {
     @Command
     @Override
     public String msg(String username, String message) throws IOException {
-        if(isLoggedIn) out.println("!msg " + username + " > " + user + ": " + message);
+        if (isLoggedIn) out.println("!msg " + username + " > " + user + ": " + message);
         else return "Not logged in.";
         return null;
     }
@@ -239,7 +259,7 @@ public class Client implements IClientCli, Runnable {
     @Command
     @Override
     public String lookup(String username) throws IOException {
-        if(isLoggedIn) out.println("!lookup " + username);
+        if (isLoggedIn) out.println("!lookup " + username);
         else return "Not logged in.";
         return null;
     }
@@ -247,7 +267,7 @@ public class Client implements IClientCli, Runnable {
     @Command
     @Override
     public String register(String privateAddress) throws IOException {
-        if(isLoggedIn) out.println("!register " + privateAddress);
+        if (isLoggedIn) out.println("!register " + privateAddress);
         else return "Not logged in.";
         return null;
     }
@@ -255,7 +275,7 @@ public class Client implements IClientCli, Runnable {
     @Command
     @Override
     public String lastMsg() throws IOException {
-        if(isLoggedIn) out.println("!lastMsg");
+        if (isLoggedIn) out.println("!lastMsg");
         return null;
     }
 
@@ -267,7 +287,7 @@ public class Client implements IClientCli, Runnable {
         out.close();
         clientSocket.close();
         shell.close();
-        if(ctcServer != null) ctcServer.interrupt();
+        if (ctcServer != null) ctcServer.interrupt();
         userResponseStream.close();
         userRequestStream.close();
         user = null;
@@ -293,25 +313,46 @@ public class Client implements IClientCli, Runnable {
     public String authenticate(String username) throws IOException {
 
 
+        ((RsaEncryption)channel).setPrivateKey(new Config("client").getString("keys.dir") + "/" + username + ".pem");
 
-            byte[] message = ("!authenticate " + username + " ").getBytes();
-            byte[] encodedClientChallenge = generate32ByteRandomNumber();
+         encodedClientChallenge = new String(generate32ByteRandomNumber());
 
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            outputStream.write(message);
-            outputStream.write(encodedClientChallenge);
-            byte messageToEncrypt[] = outputStream.toByteArray();
+       /* ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        outputStream.write(message);
+        outputStream.write(encodedClientChallenge);
+        byte messageToEncrypt[] = outputStream.toByteArray();
+        */
+        byte[] messageToEncrypt = ("!authenticate " + username + " " + encodedClientChallenge).getBytes();
 
-            channel.setPublicKey(new Config("client").getString("keys.dir") + "/chatserver.pub.pem");
-            channel.send(messageToEncrypt);
-
-
+        ((RsaEncryption)channel).setPublicKey(new Config("client").getString("keys.dir") + "/chatserver.pub.pem");
+        channel.send(messageToEncrypt);
 
 
         return null;
     }
 
-    private byte[] generate32ByteRandomNumber(){
+    public void ok(String clientChallenge, String chatserverChallenge, String secretKey, String ivParameter)  {
+        if(!(clientChallenge.equals(encodedClientChallenge))){
+                try {
+                    shell.writeLine("Clientchallenge mismatch!");
+                } catch (IOException e) {
+                    System.out.println("Shell problem");
+                }
+                return;
+            }
+
+        byte[] decodedKey = Base64.decode(secretKey);
+        SecretKey originalKey = new SecretKeySpec(decodedKey, 0, decodedKey.length, "AES");
+        byte[] decodedIvParameter = Base64.decode(ivParameter);
+        IvParameterSpec ivParameterSpec = new IvParameterSpec(decodedIvParameter);
+        channel = new AesEncryption(clientSocket,originalKey,ivParameterSpec);
+        channel.send(chatserverChallenge.getBytes());
+
+
+    }
+
+
+    private byte[] generate32ByteRandomNumber() {
 
         // generates a 32 byte secure random number
         SecureRandom secureRandom = new SecureRandom();

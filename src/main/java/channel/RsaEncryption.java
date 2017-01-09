@@ -15,7 +15,7 @@ import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 
 
-public class RsaChannel implements IChannel{
+public class RsaEncryption implements IChannel{
 
     private Key publicKey;
     private Key privateKey;
@@ -25,7 +25,7 @@ public class RsaChannel implements IChannel{
     private final static String RSA_ALGORITHM = "RSA/NONE/OAEPWithSHA256AndMGF1Padding";
 
 
-    public RsaChannel(Socket socket){
+    public RsaEncryption(Socket socket){
         this.base64Channel = new Base64Channel(socket);
         try {
           cipher = Cipher.getInstance(RSA_ALGORITHM);
