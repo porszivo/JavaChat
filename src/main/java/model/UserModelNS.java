@@ -6,10 +6,9 @@ public class UserModelNS {
     private String ip;
     private int port;
 
-    public UserModelNS(String name, String ip, int port) {
+    public UserModelNS(String name, String ip) {
         this.name = name;
         this.ip = ip;
-        this.port = port;
     }
 
     public String getName() {
@@ -26,6 +25,7 @@ public class UserModelNS {
 
     @Override
     public String toString() {
-        return name + "\t" + ip + ":" + port;
+        return name + "\t" + ip;
     }
+
 }

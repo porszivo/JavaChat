@@ -2,6 +2,7 @@ package listener;
 
 import controller.MessageControllerTCP;
 import model.UserMap;
+import nameserver.INameserverForChatserver;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -14,18 +15,20 @@ public class ServerListenerTCP implements Runnable {
     private UserMap userMap;
     private ServerSocket serverSocket;
     private ExecutorService executorService;
+    private INameserverForChatserver rootNameserver;
 
-    public ServerListenerTCP(ServerSocket serverSocket, ExecutorService executorService, UserMap userMap) {
+    public ServerListenerTCP(ServerSocket serverSocket, ExecutorService executorService, UserMap userMap, INameserverForChatserver rootNameserver) {
         this.userMap = userMap;
         this.serverSocket = serverSocket;
         this.executorService = executorService;
+        this.rootNameserver = rootNameserver;
     }
 
     public void run() {
         while(true) {
             try {
 
-                MessageControllerTCP messageControllerTCP = new MessageControllerTCP(serverSocket.accept(), userMap);
+                MessageControllerTCP messageControllerTCP = new MessageControllerTCP(serverSocket.accept(), userMap, rootNameserver);
 
                 executorService.execute(messageControllerTCP);
 

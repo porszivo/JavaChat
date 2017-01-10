@@ -78,10 +78,22 @@ public class Chatserver implements IChatserverCli, Runnable {
 	public void run() {
 
 		try {
+			Registry registry = LocateRegistry.getRegistry(nsConfig.getString("registry.host"),
+					nsConfig.getInt("registry.port"));
+
+			rootNameserver = (INameserverForChatserver) registry.lookup(nsConfig.getString("root_id"));
+
+		} catch(RemoteException e) {
+			System.err.println("Error while obtaining registry/server-remote-object.");
+		} catch(NotBoundException e) {
+			System.err.println("Error while looking for server-remote-object.");
+		}
+
+		try {
 			serverSocket = new ServerSocket(tcpPortNumber);
 			datagramSocket = new DatagramSocket(udpPortNumber);
 
-			serverListenerTCP = new ServerListenerTCP(serverSocket, executorService, userMap);
+			serverListenerTCP = new ServerListenerTCP(serverSocket, executorService, userMap, rootNameserver);
 			serverListenerUDP = new ServerListenerUDP(datagramSocket, executorService, userMap);
 			executorService.execute(serverListenerTCP);
 			executorService.execute(serverListenerUDP);
@@ -94,18 +106,6 @@ public class Chatserver implements IChatserverCli, Runnable {
 			System.out.println("Exception caught when trying to listen on port "
 					+ " or listening for a connection");
 			System.out.println(e.getMessage());
-		}
-
-		try {
-			Registry registry = LocateRegistry.getRegistry(nsConfig.getString("registry.host"),
-					nsConfig.getInt("registry.port"));
-
-			rootNameserver = (INameserverForChatserver) registry.lookup(nsConfig.getString("root_id"));
-
-		} catch(RemoteException e) {
-			System.err.println("Error while obtaining registry/server-remote-object.");
-		} catch(NotBoundException e) {
-			System.err.println("Error while looking for server-remote-object.");
 		}
 
 		System.out.println("Server is running");

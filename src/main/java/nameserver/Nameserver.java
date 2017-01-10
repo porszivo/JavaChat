@@ -37,7 +37,7 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 	private Registry registry;
 
 	private HashMap<String, INameserver> childNameserver;
-	private ArrayList<UserModelNS> userList;
+	private HashMap<String, String> userList;
 
 	/**
 	 * @param componentName
@@ -67,7 +67,7 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 		}
 
 		childNameserver = new HashMap<>();
-		userList = new ArrayList<>();
+		userList = new HashMap<>();
 
 	}
 
@@ -128,8 +128,8 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 	@Override
 	public String addresses() throws IOException {
 		String ret = "";
-		for(UserModelNS user : userList) {
-			ret += user;
+		for(String user : userList.keySet()) {
+			ret += user + "\t" + userList.get(user) + "\n";
 		}
 		return ret.equals("") ? "No user registered." : ret;
 	}
@@ -160,19 +160,43 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 
 	@Override
 	public void registerUser(String username, String address) throws RemoteException, AlreadyRegisteredException, InvalidDomainException {
+		String[] parts = username.split("\\.");
+		if(parts.length==1) {
+			for(String user : userList.keySet()) {
+				if(user.equals(username)) throw new AlreadyRegisteredException("User already registered");
+			}
+			userList.put(username, address);
+		} else {
+			String nextNS = parts[parts.length-1];
 
+			if(!childNameserver.containsKey(nextNS)) {
+				throw new InvalidDomainException("The user domain is not registered yet.");
+			}
+
+			username = username.replace("." + nextNS, "");
+			childNameserver.get(nextNS).registerUser(username, address);
+		}
 	}
 
 	@Override
 	public INameserverForChatserver getNameserver(String zone) throws RemoteException {
-		return null;
+		if(!childNameserver.containsKey(zone)) {
+			return null;
+		}
+		return childNameserver.get(zone);
 	}
 
+	// bill.vienna.at
 	@Override
 	public String lookup(String username) throws RemoteException {
-		return null;
+		String[] parts = username.split("\\.");
+		INameserverForChatserver ns = this;
+		for(int i = parts.length-1; i > 0; i--) {
+			ns = getNameserver(parts[i]);
+		}
+		if(ns==null) return "Zone not found.";
+		return ns.getUser(username);
 	}
-
 
 	// vienna.at
 	// de
@@ -221,6 +245,14 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+
+	@Override
+	public String getUser(String user) throws RemoteException {
+		if(userList.keySet().contains(user)) {
+			return user + " " + userList.get(user);
+		}
+		return "User not found!";
 	}
 
 }

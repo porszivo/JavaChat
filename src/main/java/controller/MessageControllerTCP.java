@@ -2,6 +2,9 @@ package controller;
 
 import model.UserMap;
 import model.UserModel;
+import nameserver.INameserverForChatserver;
+import nameserver.exceptions.AlreadyRegisteredException;
+import nameserver.exceptions.InvalidDomainException;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -15,10 +18,12 @@ public class MessageControllerTCP implements Runnable {
     private Socket socket;
     private UserMap userMap;
     private UserModel user;
+    private INameserverForChatserver rootNameserver;
 
-    public MessageControllerTCP(Socket socket, UserMap userMap) {
+    public MessageControllerTCP(Socket socket, UserMap userMap, INameserverForChatserver rootNameserver) {
         this.socket = socket;
         this.userMap = userMap;
+        this.rootNameserver = rootNameserver;
     }
 
     @Override
@@ -71,6 +76,10 @@ public class MessageControllerTCP implements Runnable {
 
         } catch (IOException e) {
             e.getMessage();
+        } catch (AlreadyRegisteredException e) {
+            e.printStackTrace();
+        } catch (InvalidDomainException e) {
+            e.printStackTrace();
         }
 
     }
@@ -124,19 +133,20 @@ public class MessageControllerTCP implements Runnable {
         if(userMap.contains(username)) {
             UserModel user = userMap.getUser(username);
             if(user.isRegistered()) {
-                return user.getAddress();
+                return rootNameserver.lookup(username);
             }
         }
         return "Wrong username or user not registered.";
     }
 
-    public String register(String privateAddress) throws IOException {
+    public String register(String privateAddress) throws IOException, AlreadyRegisteredException, InvalidDomainException {
 
         privateAddress = privateAddress.replace("!register ", "");
         String[] parts = privateAddress.split(":");
 
         if(parts.length != 2) return "Address is not in a valid format.";
         user.setAddress(privateAddress);
+        rootNameserver.registerUser(user.getName(), privateAddress);
 
         return "C2C_Successful_" + user.getPort();
 

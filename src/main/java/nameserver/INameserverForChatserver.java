@@ -22,4 +22,5 @@ public interface INameserverForChatserver extends Remote {
 
 	public String lookup(String username) throws RemoteException;
 
+    String getUser(String username) throws RemoteException;
 }
