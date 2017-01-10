@@ -118,11 +118,11 @@ public class MessageControllerTCP implements Runnable {
 
         } catch (IOException e) {
             e.getMessage();
-        } catch (AlreadyRegisteredException e) {
+        }/* catch (AlreadyRegisteredException e) {
             e.printStackTrace();
         } catch (InvalidDomainException e) {
             e.printStackTrace();
-        }
+        }*/
 
 
     }
