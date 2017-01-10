@@ -18,4 +18,5 @@ public interface INameserver extends INameserverForChatserver, Remote {
 			throws RemoteException, AlreadyRegisteredException,
 			InvalidDomainException;
 
+	void shutdown() throws RemoteException;
 }

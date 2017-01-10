@@ -3,8 +3,7 @@ package nameserver;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
-import java.rmi.AlreadyBoundException;
-import java.rmi.RemoteException;
+import java.rmi.*;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
@@ -13,6 +12,7 @@ import java.util.HashMap;
 
 import cli.Command;
 import cli.Shell;
+import model.UserModelNS;
 import nameserver.exceptions.AlreadyRegisteredException;
 import nameserver.exceptions.InvalidDomainException;
 import util.Config;
@@ -37,6 +37,7 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 	private Registry registry;
 
 	private HashMap<String, INameserver> childNameserver;
+	private ArrayList<UserModelNS> userList;
 
 	/**
 	 * @param componentName
@@ -66,12 +67,12 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 		}
 
 		childNameserver = new HashMap<>();
+		userList = new ArrayList<>();
 
 	}
 
 	@Override
 	public void run() {
-		// TODO
 		if(domain.equals("root")) {
 			try {
 				registry = LocateRegistry.createRegistry(rmiPort);
@@ -87,8 +88,21 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 		} else {
 			try {
 				registry = LocateRegistry.getRegistry(rmiHost, rmiPort);
+				// Root finden und Registrierung starten
+				INameserver rootNameserver = (INameserver) registry.lookup(bindingName);
+				INameserver remote = (INameserver) UnicastRemoteObject.exportObject(this, 0);
+				rootNameserver.registerNameserver(domain, remote, null);
+
 			} catch (RemoteException e) {
-				System.out.println("Error while trying to get Registry");
+				System.out.println("Error while trying to get Registry\n" + e.getMessage());
+			} catch (NotBoundException e) {
+				System.out.println("Error while looking up for root");
+				e.printStackTrace();
+			} catch (AlreadyRegisteredException e) {
+				System.out.println(e.getMessage());
+				e.printStackTrace();
+			} catch (InvalidDomainException e) {
+				System.out.println(e.getMessage());
 				e.printStackTrace();
 			}
 		}
@@ -110,16 +124,26 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 		return ret;
 	}
 
+	@Command
 	@Override
 	public String addresses() throws IOException {
-		// TODO Auto-generated method stub
-		return null;
+		String ret = "";
+		for(UserModelNS user : userList) {
+			ret += user;
+		}
+		return ret.equals("") ? "No user registered." : ret;
 	}
 
+	@Command
 	@Override
-	public String exit() throws IOException {
-		// TODO Auto-generated method stub
-		return null;
+	public String exit() throws IOException, NotBoundException {
+		if(!childNameserver.isEmpty()) {
+			for (String child : childNameserver.keySet()) {
+				childNameserver.get(child).shutdown();
+			}
+		}
+		Thread.currentThread().interrupt();
+		return "Exit successful!";
 	}
 
 	/**
@@ -154,10 +178,12 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 	// de
 	@Override
 	public void registerNameserver(String domain, INameserver nameserver, INameserverForChatserver nameserverForChatserver) throws RemoteException, AlreadyRegisteredException, InvalidDomainException {
-		String[] parts = domain.split(".");
+		String[] parts = domain.split("\\.");
+		System.out.println(parts.length);
 		if(parts.length==1) {
 			if(!childNameserver.containsKey(domain)) {
 				childNameserver.put(domain, nameserver);
+				userResponseStream.println("Registering nameserver for zone '" + domain + "'");
 			} else {
 				throw new AlreadyRegisteredException(domain + " is already registered.");
 			}
@@ -167,8 +193,34 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 			}
 			INameserver nServer = childNameserver.get(parts[parts.length-1]);
 			domain = domain.replace("." + parts[parts.length-1], "");
-			nameserver.registerNameserver(domain, nServer, null);
+			nServer.registerNameserver(domain, nameserver, null);
 		}
 
 	}
+
+	@Override
+	public void shutdown() {
+		try {
+			UnicastRemoteObject.unexportObject(this,true);
+			if(domain.equals("root")) {
+				UnicastRemoteObject.unexportObject(registry, true);
+				registry.unbind(bindingName);
+			}
+			shell.close();
+			userResponseStream.close();
+			userRequestStream.close();
+		} catch (NoSuchObjectException e) {
+			userResponseStream.println("Error while unexporting object");
+			e.printStackTrace();
+		} catch (AccessException e) {
+			e.printStackTrace();
+		} catch (RemoteException e) {
+			e.printStackTrace();
+		} catch (NotBoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
 }

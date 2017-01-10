@@ -1,6 +1,7 @@
 package nameserver;
 
 import java.io.IOException;
+import java.rmi.NotBoundException;
 
 /**
  * Please note that this interface is not needed for Lab 1, but will later be
@@ -37,6 +38,6 @@ public interface INameserverCli {
 	 * @throws IOException
 	 *             if an I/O error occurs
 	 */
-	public String exit() throws IOException;
+	public String exit() throws IOException, NotBoundException;
 
 }
