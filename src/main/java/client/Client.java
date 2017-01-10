@@ -130,19 +130,23 @@ public class Client implements IClientCli, Runnable {
             return "Successfully registered address for " + user;
 
         } else if (nextMessage.equals("!ack")) { //Schreibfehler gewesen: Hattest !ark statt !ack
-
+            //userResponseStream.println("!ack");
             privMessageClient.close();
 
         } else if (nextMessage.contains("!msg")) {
 
-            //"!msg " + username + " > " + user + ": " + message)
+            //"!msg_" + username + "_> " + user + ": " + message)
+
             String[] parts = nextMessage.split("_");
             String[] adr   = parts[1].split(":");
+
+            System.out.println("Hmac Input: " + parts[2]);
             try {
                 //sign Message with HMAC
                 String encryptedMessage = addHMAC(parts[2]);
                 privMessageClient = new ClientToClientChannel(adr[0], Integer.parseInt(adr[1]), this, false);
                 privMessageClient.send(encryptedMessage);
+                //messageQueue.add("!ack");
                 return encryptedMessage.replace(">", "<");
             } catch (IOException e) {
                 System.out.println(e.getMessage());
@@ -164,6 +168,8 @@ public class Client implements IClientCli, Runnable {
         if(hashMac == null) {
             return message;
         }
+
+        System.out.println("Compare: " + hashMac);
 
         byte[] encryptedMessage = Base64.encode(hashMac);
 

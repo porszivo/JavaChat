@@ -74,19 +74,26 @@ public class ClientToClientChannel implements Runnable {
                         String[] parts = request.split(" ");
                         String receivedHMAC = parts[0];
 
+                        client.send("Compare: " + receivedHMAC);
+
                         byte[] decodedHMAC = Base64.decode(receivedHMAC);
+
+                        client.send("Generated Input: " + request.substring(receivedHMAC.length() + 1));
 
                         try{
 
-                            byte[] computedHMAC = generateHMAC(request.substring(receivedHMAC.length()+1));
+                            byte[] computedHMAC = generateHMAC(request.substring(receivedHMAC.length() + 1));
 
+                            client.send("D: " + decodedHMAC + " G: " + computedHMAC);
+
+                            //Arrays.equals(h,h2)
                             if(MessageDigest.isEqual(decodedHMAC, computedHMAC)) {
                                 client.addNewMessage(request);
-                                writer.println(addHMAC("!ack"));
+                                client.send(addHMAC("!ack"));
                                 running = false;
                             } else {
                                 client.addNewMessage(request);
-                                writer.println(addHMAC("!tempered"));
+                                client.send(addHMAC("!tempered"));
                                 running = false;
                             }
 
