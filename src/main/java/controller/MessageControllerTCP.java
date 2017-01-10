@@ -129,6 +129,7 @@ public class MessageControllerTCP implements Runnable {
             user.setLoggedIn(true);
             this.user = user;
             this.user.setSocket(socket);
+            this.user.setMessageControllerTCP(this);
             out = "Successfully logged in.";
         }
 
@@ -150,13 +151,25 @@ public class MessageControllerTCP implements Runnable {
         message = message.replace("!send ", "");
         System.out.println("Anzahl  online user:" + userMap.getOnlineUser().size());
         for (UserModel user : userMap.getOnlineUser()) {
-
+            user.getMessageControllerTCP().receiceMessage(message);
+    /*
             PrintWriter socketOut = new PrintWriter(user.getSocket().getOutputStream(), true);
             socketOut.println(message);
+            */
             user.setLastReceivedPrivateMessage(message);
+
+
 
         }
         return "Message sent to all online Users!";
+    }
+
+    public void receiceMessage(String message){
+        try {
+            channel.send(message.getBytes("UTF-8"));
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
     }
 
     public String msg(String username) throws IOException {

@@ -1,5 +1,7 @@
 package model;
 
+import controller.MessageControllerTCP;
+
 import java.net.Socket;
 
 /**
@@ -12,10 +14,23 @@ public class UserModel {
     private boolean isLoggedIn;
     private Socket socket;
 
+
+
+
+    private MessageControllerTCP messageControllerTCP;
+
     private String adr;
     private int port;
-
     private String lastReceivedPrivateMessage;
+
+
+    public void setMessageControllerTCP(MessageControllerTCP messageControllerTCP) {
+        this.messageControllerTCP = messageControllerTCP;
+    }
+    public MessageControllerTCP getMessageControllerTCP() {
+        return messageControllerTCP;
+    }
+
 
     public UserModel(String name, String password) {
         this.name = name;
