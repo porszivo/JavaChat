@@ -1,17 +1,25 @@
 package controller;
 
+import channel.AesEncryption;
+import channel.IChannel;
+import channel.RsaEncryption;
+import com.sun.tools.internal.ws.wsdl.document.soap.SOAPUse;
 import model.UserMap;
 import model.UserModel;
 import nameserver.INameserverForChatserver;
 import nameserver.exceptions.AlreadyRegisteredException;
 import nameserver.exceptions.InvalidDomainException;
+import org.bouncycastle.util.encoders.Base64;
+import util.Config;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
+import java.io.*;
 import java.net.Socket;
-import java.util.ArrayList;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.util.Arrays;
 
 public class MessageControllerTCP implements Runnable {
 
@@ -19,57 +27,91 @@ public class MessageControllerTCP implements Runnable {
     private UserMap userMap;
     private UserModel user;
     private INameserverForChatserver rootNameserver;
+    private IChannel channel;
+    private byte[] chatserverChallenge;
+    private String username;
+
 
     public MessageControllerTCP(Socket socket, UserMap userMap, INameserverForChatserver rootNameserver) {
         this.socket = socket;
         this.userMap = userMap;
         this.rootNameserver = rootNameserver;
+        channel = new RsaEncryption(socket);
+        ((RsaEncryption)channel).setPrivateKey(new Config("chatserver").getString("keys.dir") + "/chatserver.pem");
     }
 
     @Override
     public void run() {
         try {
+
             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-            String request;
-            while((request = in.readLine()) != null) {
+            //String request;
+            while (true) {
 
+                String request = new String(channel.receive());
+                System.out.println("request: " + request);
 
+                if(chatserverChallenge!= null){
+                    if (!Arrays.equals(chatserverChallenge,request.getBytes())){
+                        System.out.println("ChatserverChallenge mismatch!");
+                        return;
+                    }else{
+                        //channel.send(login(username).getBytes());
+                        System.out.println("Authenticate successful!");
+                        System.out.println(login(username));
+                        chatserverChallenge = null;
+                        username = null;
+                    }
+
+                }
 
                 String[] cmd = request.split("\\s");
 
                 switch (cmd[0]) {
                     case "!login":
-                        if(cmd.length == 3) {
-                            out.println(login(cmd[1], cmd[2]));
+                        if (cmd.length == 3) {
+                            // out.println(login(cmd[1], cmd[2]));
                         }
                         break;
-                    case "!logout":
-                        out.println(logout());
+                    case "!authenticate":
+                        if (cmd.length == 3) {
+                            authenticate(cmd[1], cmd[2]);
+                        }
                         break;
                     case "!send":
-                        send(request);
+
+                        String response = send(request);
+                        System.out.println(response);
+                        channel.send(response.getBytes("UTF-8"));
                         break;
+                        /*
+                    case "!logout":
+                         out.println(logout());
+                        break;
+
                     case "!msg":
-                        if(cmd.length > 3) {
+                        if (cmd.length > 3) {
                             String message = request.replace("!msg " + cmd[1] + " ", "");
-                            out.println(msg(cmd[1]) + "_" + message);
+                             out.println(msg(cmd[1]) + "_" + message);
                         } else {
                             out.println("ERROR: Private message has wrong format");
                         }
                         break;
                     case "!lookup":
-                        out.println(lookup(request.replace("!lookup ", "")));
+                         out.println(lookup(request.replace("!lookup ", "")));
                         break;
                     case "!register":
-                        out.println(register(request));
+                         out.println(register(request));
                         break;
                     case "!lastMsg":
-                        out.println(lastMsg());
+                         out.println(lastMsg());
                         break;
+                    */
                     default:
-                        out.println("Command does not have the expected format or is unknown!\n" + request);
+                         //System.out.println("Command does not have the expected format or is unknown!\n" );//+ request);
                         break;
+
                 }
 
             }
@@ -82,27 +124,30 @@ public class MessageControllerTCP implements Runnable {
             e.printStackTrace();
         }
 
+
     }
 
-    public String login(String username, String password) throws IOException {
+    public String login(String username) throws IOException {
         String out = "";
         UserModel user = userMap.getUser(username);
-        if(user == null) {
-            out = "Wrong username or password.";
-        } else if(user.isLoggedIn()) {
+        if (user == null) {
+            out = "Wrong username";
+        } else if (user.isLoggedIn()) {
             out = "Already logged in.";
-        } else if(user.checkPassword(password)) {
+        } else {
+            user.setLoggedIn(true);
             this.user = user;
             this.user.setSocket(socket);
+            this.user.setMessageControllerTCP(this);
             out = "Successfully logged in.";
         }
 
-        return out.equals("") ? "Wrong username or password." : out;
+        return out.equals("") ? "Wrong username." : out;
 
     }
 
     public String logout() {
-        if(user==null) {
+        if (user == null) {
             return "Not logged in.";
         } else {
             this.user.logout();
@@ -113,19 +158,32 @@ public class MessageControllerTCP implements Runnable {
 
     public String send(String message) throws IOException {
         message = message.replace("!send ", "");
-        for(UserModel user : userMap.getOnlineUser()) {
-
+        System.out.println("Anzahl  online user:" + userMap.getOnlineUser().size());
+        for (UserModel user : userMap.getOnlineUser()) {
+            user.getMessageControllerTCP().receiceMessage(message);
+    /*
             PrintWriter socketOut = new PrintWriter(user.getSocket().getOutputStream(), true);
             socketOut.println(message);
+            */
             user.setLastReceivedPrivateMessage(message);
 
+
+
         }
-        return message;
+        return "Message sent to all online Users!";
+    }
+
+    public void receiceMessage(String message){
+        try {
+            channel.send(message.getBytes("UTF-8"));
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
     }
 
     public String msg(String username) throws IOException {
         String output = lookup(username);
-        if(output.equals("Wrong username or user not registered.")) return "Wrong username or user not reachable.";
+        if (output.equals("Wrong username or user not registered.")) return "Wrong username or user not reachable.";
         return "!msg_" + output;
     }
 
@@ -133,7 +191,6 @@ public class MessageControllerTCP implements Runnable {
         if(userMap.contains(username)) {
             UserModel user = userMap.getUser(username);
             if(user.isRegistered()) {
-                System.out.println(rootNameserver.lookup(username));
                 return rootNameserver.lookup(username).equals("") ? "Wrong username or user not registered." : rootNameserver.lookup(username);
             }
         }
@@ -145,7 +202,7 @@ public class MessageControllerTCP implements Runnable {
         privateAddress = privateAddress.replace("!register ", "");
         String[] parts = privateAddress.split(":");
 
-        if(parts.length != 2) return "Address is not in a valid format.";
+        if (parts.length != 2) return "Address is not in a valid format.";
         user.setAddress(privateAddress);
         rootNameserver.registerUser(user.getName(), privateAddress);
 
@@ -157,7 +214,38 @@ public class MessageControllerTCP implements Runnable {
         return user.getlastReceivedPrivateMessage();
     }
 
-    public String authenticate(String username) throws IOException {
-        return null;
+    public void authenticate(String username, String clientChallenge) throws IOException {
+
+        this.username = username;
+        chatserverChallenge = generateByteRandomNumber(32);
+        byte[] encodedIvParameter = generateByteRandomNumber(16);
+        IvParameterSpec ivParameterSpec = new IvParameterSpec(Base64.decode(encodedIvParameter));
+        KeyGenerator generator = null;
+        try {
+            generator = KeyGenerator.getInstance("AES");
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+
+        generator.init(256);
+        SecretKey secretKey = generator.generateKey();
+        String encodedSecretKey = new String(Base64.encode(secretKey.getEncoded()));
+        byte[] responseMessageToEncrypt = ("!ok " + clientChallenge + " " + new String(chatserverChallenge) + " " + encodedSecretKey + " " + new String(encodedIvParameter)).getBytes("UTF-8");
+
+        ((RsaEncryption)channel).setPublicKey(new Config("chatserver").getString("keys.dir") + "/" + username + ".pub.pem");
+        channel.send(responseMessageToEncrypt);
+        channel.send("dummy".getBytes());
+        channel = new AesEncryption(socket,secretKey,ivParameterSpec);
+
+    }
+
+    private byte[] generateByteRandomNumber(int bytes) {
+
+        SecureRandom secureRandom = new SecureRandom();
+        final byte[] number = new byte[bytes];
+        secureRandom.nextBytes(number);
+
+        return Base64.encode(number);
+
     }
 }
