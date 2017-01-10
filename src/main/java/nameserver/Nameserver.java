@@ -183,6 +183,7 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 		if(!childNameserver.containsKey(zone)) {
 			return null;
 		}
+		System.out.println("new zone" + zone);
 		return childNameserver.get(zone);
 	}
 
@@ -190,12 +191,23 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 	@Override
 	public String lookup(String username) throws RemoteException {
 		String[] parts = username.split("\\.");
-		INameserverForChatserver ns = this;
-		for(int i = parts.length-1; i > 0; i--) {
-			ns = getNameserver(parts[i]);
+		String ret = "";
+		if(parts.length==1) {
+			for(String user : userList.keySet()) {
+				if(user.equals(username)) return userList.get(username.replace("\\.", ""));
+			}
+			return "";
+		} else {
+			String nextNS = parts[parts.length-1];
+
+			if(!childNameserver.containsKey(nextNS)) {
+				return "Zone not found.";
+			}
+
+			username = username.replace("." + nextNS, "");
+			ret = childNameserver.get(nextNS).lookup(username);
 		}
-		if(ns==null) return "Zone not found.";
-		return ns.getUser(username);
+		return ret;
 	}
 
 	// vienna.at
@@ -203,7 +215,6 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 	@Override
 	public void registerNameserver(String domain, INameserver nameserver, INameserverForChatserver nameserverForChatserver) throws RemoteException, AlreadyRegisteredException, InvalidDomainException {
 		String[] parts = domain.split("\\.");
-		System.out.println(parts.length);
 		if(parts.length==1) {
 			if(!childNameserver.containsKey(domain)) {
 				childNameserver.put(domain, nameserver);
@@ -250,9 +261,10 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 	@Override
 	public String getUser(String user) throws RemoteException {
 		if(userList.keySet().contains(user)) {
-			return user + " " + userList.get(user);
+			System.out.println(user);
+			return userList.get(user);
 		}
-		return "User not found!";
+		return "";
 	}
 
 }

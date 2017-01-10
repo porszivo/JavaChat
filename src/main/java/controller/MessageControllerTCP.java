@@ -133,7 +133,8 @@ public class MessageControllerTCP implements Runnable {
         if(userMap.contains(username)) {
             UserModel user = userMap.getUser(username);
             if(user.isRegistered()) {
-                return rootNameserver.lookup(username);
+                System.out.println(rootNameserver.lookup(username));
+                return rootNameserver.lookup(username).equals("") ? "Wrong username or user not registered." : rootNameserver.lookup(username);
             }
         }
         return "Wrong username or user not registered.";
