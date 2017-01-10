@@ -13,5 +13,6 @@ public interface IChannel {
 
     byte[] receive() throws IOException;
 
+    void close();
 
 }

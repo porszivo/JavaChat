@@ -95,4 +95,14 @@ public class RsaEncryption implements IChannel{
         }
     }
 
+
+    public void close(){
+        System.out.println("starting rsa close");
+
+        base64Channel.close();
+        System.out.println("close rsa");
+
+    }
+
+
 }

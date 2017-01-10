@@ -12,7 +12,7 @@ public class ClientListenerTCP implements Runnable {
 
     private Socket socket;
     private Client client;
-    private BufferedReader in;
+    //private BufferedReader in;
     private Queue<String> messageQueue;
     private IChannel channel;
 
@@ -31,16 +31,16 @@ public class ClientListenerTCP implements Runnable {
         */
 
     }
+    private boolean running = false;
 
     @Override
     public void run() {
-        while(true) {
+        while(!running) {
 
             try {
                 String input = new String(channel.receive());
                 receiveMessage(input);
             } catch (IOException e) {
-                e.printStackTrace();
             }
 
             /*
@@ -57,14 +57,17 @@ public class ClientListenerTCP implements Runnable {
         messageQueue.add(message);
     }
 
+    public void setChannel(IChannel channel) {
+        //running = true;
+        this.channel = channel;
+        //running = false;
+    }
+
     public void close() {
-        try {
-            if(in != null) {
-                in.close();
-            }
-        } catch(IOException e) {
-            System.out.println(e.getMessage());
-        }
+        System.out.println("starting close");
+        channel.close();
+        running = true;
+        System.out.println("close listener");
     }
 
 }

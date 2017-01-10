@@ -77,5 +77,8 @@ public class AesEncryption implements IChannel {
         return decryptedMessage;
     }
 
+    public void close(){
+        base64Channel.close();
+    }
 
 }

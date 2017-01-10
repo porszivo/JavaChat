@@ -35,6 +35,10 @@ public class UserModel {
 
     public synchronized boolean isRegistered() { return port != -1; }
 
+    public void setLoggedIn(boolean status){
+        this.isLoggedIn = status;
+    }
+
     public boolean checkPassword(String password) {
         if(password.equals(this.password)) {
             isLoggedIn = true;

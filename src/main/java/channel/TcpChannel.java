@@ -42,7 +42,22 @@ public class TcpChannel implements IChannel {
 
         String request = in.readLine();
 
-        return request.getBytes();
+        return request.getBytes("UTF-8");
+    }
+
+    public void close(){
+        if(in != null){
+            try {
+
+                socket.close();
+
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+
     }
 
 }

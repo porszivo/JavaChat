@@ -27,4 +27,11 @@ public class Base64Channel implements IChannel{
         return Base64.decode(tcpChannel.receive());
 
     }
+
+    public void close(){
+
+        tcpChannel.close();
+
+
+    }
 }

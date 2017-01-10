@@ -3,6 +3,7 @@ package controller;
 import channel.AesEncryption;
 import channel.IChannel;
 import channel.RsaEncryption;
+import com.sun.tools.internal.ws.wsdl.document.soap.SOAPUse;
 import model.UserMap;
 import model.UserModel;
 import org.bouncycastle.util.encoders.Base64;
@@ -15,6 +16,7 @@ import java.io.*;
 import java.net.Socket;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.util.Arrays;
 
 public class MessageControllerTCP implements Runnable {
 
@@ -22,7 +24,8 @@ public class MessageControllerTCP implements Runnable {
     private UserMap userMap;
     private UserModel user;
     private IChannel channel;
-    private String chatserverChallenge;
+    private byte[] chatserverChallenge;
+    private String username;
 
 
     public MessageControllerTCP(Socket socket, UserMap userMap) {
@@ -36,19 +39,24 @@ public class MessageControllerTCP implements Runnable {
     public void run() {
         try {
 
-            //BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            //PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
             //String request;
             while (true) {
 
                 String request = new String(channel.receive());
+                System.out.println("request: " + request);
 
                 if(chatserverChallenge!= null){
-                    if (!chatserverChallenge.equals(request)){
+                    if (!Arrays.equals(chatserverChallenge,request.getBytes())){
                         System.out.println("ChatserverChallenge mismatch!");
                         return;
                     }else{
+                        //channel.send(login(username).getBytes());
                         System.out.println("Authenticate successful!");
+                        System.out.println(login(username));
+                        chatserverChallenge = null;
+                        username = null;
                     }
 
                 }
@@ -66,32 +74,39 @@ public class MessageControllerTCP implements Runnable {
                             authenticate(cmd[1], cmd[2]);
                         }
                         break;
-                    case "!logout":
-                        // out.println(logout());
-                        break;
                     case "!send":
-                        send(request);
+
+                        String response = send(request);
+                        System.out.println(response);
+                        channel.send(response.getBytes("UTF-8"));
                         break;
+                        /*
+                    case "!logout":
+                         out.println(logout());
+                        break;
+
                     case "!msg":
                         if (cmd.length > 3) {
                             String message = request.replace("!msg " + cmd[1] + " ", "");
-                            // out.println(msg(cmd[1]) + "_" + message);
+                             out.println(msg(cmd[1]) + "_" + message);
                         } else {
-                            //out.println("ERROR: Private message has wrong format");
+                            out.println("ERROR: Private message has wrong format");
                         }
                         break;
                     case "!lookup":
-                        // out.println(lookup(request.replace("!lookup ", "")));
+                         out.println(lookup(request.replace("!lookup ", "")));
                         break;
                     case "!register":
-                        // out.println(register(request));
+                         out.println(register(request));
                         break;
                     case "!lastMsg":
-                        // out.println(lastMsg());
+                         out.println(lastMsg());
                         break;
+                    */
                     default:
-                        // out.println("Command does not have the expected format or is unknown!\n" );//+ request);
+                         //System.out.println("Command does not have the expected format or is unknown!\n" );//+ request);
                         break;
+
                 }
 
             }
@@ -103,20 +118,21 @@ public class MessageControllerTCP implements Runnable {
 
     }
 
-    public String login(String username, String password) throws IOException {
+    public String login(String username) throws IOException {
         String out = "";
         UserModel user = userMap.getUser(username);
         if (user == null) {
-            out = "Wrong username or password.";
+            out = "Wrong username";
         } else if (user.isLoggedIn()) {
             out = "Already logged in.";
-        } else if (user.checkPassword(password)) {
+        } else {
+            user.setLoggedIn(true);
             this.user = user;
             this.user.setSocket(socket);
             out = "Successfully logged in.";
         }
 
-        return out.equals("") ? "Wrong username or password." : out;
+        return out.equals("") ? "Wrong username." : out;
 
     }
 
@@ -132,6 +148,7 @@ public class MessageControllerTCP implements Runnable {
 
     public String send(String message) throws IOException {
         message = message.replace("!send ", "");
+        System.out.println("Anzahl  online user:" + userMap.getOnlineUser().size());
         for (UserModel user : userMap.getOnlineUser()) {
 
             PrintWriter socketOut = new PrintWriter(user.getSocket().getOutputStream(), true);
@@ -139,7 +156,7 @@ public class MessageControllerTCP implements Runnable {
             user.setLastReceivedPrivateMessage(message);
 
         }
-        return message;
+        return "Message sent to all online Users!";
     }
 
     public String msg(String username) throws IOException {
@@ -174,9 +191,10 @@ public class MessageControllerTCP implements Runnable {
         return user.getlastReceivedPrivateMessage();
     }
 
-    public String authenticate(String username, String clientChallenge) throws IOException {
+    public void authenticate(String username, String clientChallenge) throws IOException {
 
-        chatserverChallenge = new String(generateByteRandomNumber(32));
+        this.username = username;
+        chatserverChallenge = generateByteRandomNumber(32);
         byte[] encodedIvParameter = generateByteRandomNumber(16);
         IvParameterSpec ivParameterSpec = new IvParameterSpec(Base64.decode(encodedIvParameter));
         KeyGenerator generator = null;
@@ -189,13 +207,13 @@ public class MessageControllerTCP implements Runnable {
         generator.init(256);
         SecretKey secretKey = generator.generateKey();
         String encodedSecretKey = new String(Base64.encode(secretKey.getEncoded()));
-        byte[] responseMessageToEncrypt = ("!ok " + clientChallenge + " " + chatserverChallenge + " " + encodedSecretKey + " " + new String(encodedIvParameter)).getBytes();
+        byte[] responseMessageToEncrypt = ("!ok " + clientChallenge + " " + new String(chatserverChallenge) + " " + encodedSecretKey + " " + new String(encodedIvParameter)).getBytes("UTF-8");
 
         ((RsaEncryption)channel).setPublicKey(new Config("chatserver").getString("keys.dir") + "/" + username + ".pub.pem");
         channel.send(responseMessageToEncrypt);
+        channel.send("dummy".getBytes());
         channel = new AesEncryption(socket,secretKey,ivParameterSpec);
 
-        return null;
     }
 
     private byte[] generateByteRandomNumber(int bytes) {
