@@ -5,7 +5,6 @@ import cli.Shell;
 import listener.ServerListenerTCP;
 import listener.ServerListenerUDP;
 import model.UserMap;
-import model.UserModel;
 import nameserver.INameserverForChatserver;
 import util.Config;
 
@@ -14,7 +13,6 @@ import java.io.InputStream;
 import java.io.PrintStream;
 import java.net.DatagramSocket;
 import java.net.ServerSocket;
-import java.net.SocketTimeoutException;
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;

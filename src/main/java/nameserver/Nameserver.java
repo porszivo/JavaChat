@@ -4,8 +4,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.rmi.AlreadyBoundException;
-import java.rmi.NotBoundException;
-import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
@@ -13,6 +11,7 @@ import java.rmi.server.UnicastRemoteObject;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+import cli.Command;
 import cli.Shell;
 import nameserver.exceptions.AlreadyRegisteredException;
 import nameserver.exceptions.InvalidDomainException;
@@ -28,17 +27,16 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 	private Config config;
 	private InputStream userRequestStream;
 	private PrintStream userResponseStream;
+	private Shell shell;
 
-	private Registry registry;
-	private ArrayList<INameserver> serverList;
-
+	private String bindingName;
 	private String rmiHost;
 	private int rmiPort;
-	private String bindingName;
-	private boolean root;
 	private String domain;
 
-	private Shell shell;
+	private Registry registry;
+
+	private HashMap<String, INameserver> childNameserver;
 
 	/**
 	 * @param componentName
@@ -51,61 +49,63 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 	 *            the output stream to write the console output to
 	 */
 	public Nameserver(String componentName, Config config,
-			InputStream userRequestStream, PrintStream userResponseStream) {
+					  InputStream userRequestStream, PrintStream userResponseStream) {
 		this.componentName = componentName;
 		this.config = config;
 		this.userRequestStream = userRequestStream;
 		this.userResponseStream = userResponseStream;
 
-		serverList = new ArrayList<>();
-		rmiHost = config.getString("registry.host");
-		rmiPort = config.getInt("registry.port");
-		bindingName = config.getString("root_id");
-
-		if(!config.listKeys().contains("domain")) {
-			root = true;
-			domain = "root";
+		// TODO
+		this.bindingName = config.getString("root_id");
+		this.rmiHost = config.getString("registry.host");
+		this.rmiPort = config.getInt("registry.port");
+		if(config.listKeys().contains("domain")) {
+			this.domain = config.getString("domain");
 		} else {
-			root = false;
-			domain = config.getString("domain");
+			this.domain = "root";
 		}
+
+		childNameserver = new HashMap<>();
 
 	}
 
 	@Override
 	public void run() {
-		try {
-			registry = LocateRegistry.createRegistry(rmiPort);
-			INameserver remote = (INameserver) UnicastRemoteObject.exportObject(this, 0);
-			registry.bind(bindingName, remote);
-		} catch (RemoteException e) {
-			System.err.println("Error while starting");
-			e.printStackTrace();
-		} catch (AlreadyBoundException e) {
-			System.err.println("Error while binding");
-		}
-
-		if(!domain.equals("root")) {
-			Registry rootRegistry = null;
+		// TODO
+		if(domain.equals("root")) {
 			try {
-				rootRegistry = LocateRegistry.getRegistry(rmiHost, rmiPort);
-				INameserver server = (INameserver) rootRegistry.lookup(bindingName);
+				registry = LocateRegistry.createRegistry(rmiPort);
+				INameserver remote = (INameserver) UnicastRemoteObject.exportObject(this, 0);
+				registry.bind(bindingName, remote);
 			} catch (RemoteException e) {
-				System.err.println("Error while starting");
+				System.out.println("Error while trying to create Registry");
 				e.printStackTrace();
-			} catch (NotBoundException e) {
-				System.err.println("Error while looking for server-remote-object.");
+			} catch (AlreadyBoundException e) {
+				System.out.println("Error while binding remote object.");
+				e.printStackTrace();
+			}
+		} else {
+			try {
+				registry = LocateRegistry.getRegistry(rmiHost, rmiPort);
+			} catch (RemoteException e) {
+				System.out.println("Error while trying to get Registry");
+				e.printStackTrace();
 			}
 		}
 
 		shell = new Shell(componentName, userRequestStream, userResponseStream);
 		shell.register(this);
+
+		new Thread(shell).start();
+
 	}
 
+	@Command
 	@Override
 	public String nameservers() throws IOException {
 		String ret = "";
-		for(INameserver ns : serverList) {
+		for (String ns : childNameserver.keySet()) {
+			ret += ns + "\n";
 		}
 		return ret;
 	}
@@ -149,8 +149,26 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 		return null;
 	}
 
+
+	// vienna.at
+	// de
 	@Override
 	public void registerNameserver(String domain, INameserver nameserver, INameserverForChatserver nameserverForChatserver) throws RemoteException, AlreadyRegisteredException, InvalidDomainException {
+		String[] parts = domain.split(".");
+		if(parts.length==1) {
+			if(!childNameserver.containsKey(domain)) {
+				childNameserver.put(domain, nameserver);
+			} else {
+				throw new AlreadyRegisteredException(domain + " is already registered.");
+			}
+		} else {
+			if(!childNameserver.containsKey(parts[parts.length-1])) {
+				throw new InvalidDomainException(domain + " is not a valid domain.");
+			}
+			INameserver nServer = childNameserver.get(parts[parts.length-1]);
+			domain = domain.replace("." + parts[parts.length-1], "");
+			nameserver.registerNameserver(domain, nServer, null);
+		}
 
 	}
 }
