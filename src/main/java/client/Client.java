@@ -1,12 +1,9 @@
 package client;
 
-import channel.AesEncryption;
-import channel.IChannel;
-import channel.RsaEncryption;
+import channel.*;
 import cli.Command;
 import cli.Shell;
 import listener.ClientListenerTCP;
-import channel.ClientToClientChannel;
 import org.bouncycastle.util.encoders.Base64;
 import util.Config;
 
@@ -109,13 +106,15 @@ public class Client implements IClientCli, Runnable {
         while (true) {
             if (messageQueue.peek() != null) {
                 //write(
-                        checkOutput(getNextMessage());
+                checkOutput(getNextMessage());
             }
         }
 
     }
 
     private void checkOutput(String nextMessage) {
+
+        System.out.println("Die erhaltene Message vom chatserver: " + nextMessage);
 
         String[] cmd = nextMessage.split("\\s");
 
@@ -129,8 +128,33 @@ public class Client implements IClientCli, Runnable {
 
             case "Already":
                 clientListenerTCP.close();
-                default:
-                    write(nextMessage);
+
+            case "!msg_":
+                System.out.println("Hallooo msg funkttt");
+                String[] parts = nextMessage.split("_");
+                String[] adr = parts[1].split(":");
+                System.out.println("Output bei msg:" + adr[0] + Integer.parseInt(adr[1]));
+                try {
+                    Socket socket = new Socket(parts[0],Integer.parseInt(parts[1]));
+                    //privMessageClient = new ClientToClientChannel(adr[0], Integer.parseInt(adr[1]), this, false);
+                    // privMessageClient.send(parts[2]);
+                    channel = new Base64Channel(socket);
+                    byte[] message = (user + " " + parts[3]).getBytes("UTF-8");
+
+                    //return parts[2].replace(">", "<");
+
+
+                    ClientListenerTCP clientListenerTCP = new ClientListenerTCP(channel, this, messageQueue);
+                    new Thread(clientListenerTCP).start();
+
+                    channel.send(message);
+
+
+                } catch (IOException e) {
+                    System.out.println(e.getMessage());
+                }
+            default:
+                write(nextMessage);
 
         }
 
@@ -202,10 +226,10 @@ public class Client implements IClientCli, Runnable {
     @Override
     public String login(String username, String password) throws IOException {
         write("Login no longer available, please start with !authenticate <username>");
-            //out.println("!login " + username + " " + password);
-            //user = username;
+        //out.println("!login " + username + " " + password);
+        //user = username;
 
-            return null;
+        return null;
 
     }
 
@@ -326,7 +350,7 @@ public class Client implements IClientCli, Runnable {
         try {
             ((RsaEncryption) channel).setPrivateKey(new Config("client").getString("keys.dir") + "/" + username + ".pem");
 
-        }catch (FileNotFoundException e){
+        } catch (FileNotFoundException e) {
             return "No such user, please enter an exiting user!";
         }
 
@@ -344,7 +368,7 @@ public class Client implements IClientCli, Runnable {
 
     public void ok(String clientChallenge, String chatserverChallenge, String secretKey, String ivParameter) {
 
-        if (!Arrays.equals(clientChallenge.getBytes(),encodedClientChallenge)) {
+        if (!Arrays.equals(clientChallenge.getBytes(), encodedClientChallenge)) {
             try {
                 shell.writeLine("Clientchallenge mismatch!");
             } catch (IOException e) {
