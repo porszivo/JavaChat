@@ -114,7 +114,7 @@ public class MessageControllerTCP implements Runnable {
                         break;*/
 
                     default:
-                         //System.out.println("Command does not have the expected format or is unknown!\n" );//+ request);
+                        //System.out.println("Command does not have the expected format or is unknown!\n" );//+ request);
                         break;
 
                 }
@@ -123,11 +123,11 @@ public class MessageControllerTCP implements Runnable {
 
         } catch (IOException e) {
             e.getMessage();
-        }/* catch (AlreadyRegisteredException e) {
+        } catch (AlreadyRegisteredException e) {
             e.printStackTrace();
         } catch (InvalidDomainException e) {
             e.printStackTrace();
-        }*/
+        }
 
 
     }
