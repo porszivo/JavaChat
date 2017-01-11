@@ -184,18 +184,20 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 		return childNameserver.get(zone);
 	}
 
-	// bill.vienna.at
 	@Override
-	public String lookup(String username) throws RemoteException {
-		String[] parts = username.split("\\.");
-		String user = parts[0];
-		INameserverForChatserver ns = this;
-		for(int i = parts.length-1; i > 0; i--) {
-			ns = getNameserver(parts[i]);
-		}
-		if(ns==null) return "Wrong username or user not registered.";
-		return ns.getUser(user);
-	}
+    public String lookup(String username) throws RemoteException {
+        String[] parts = username.split("\\.");
+        if(parts.length==1) {
+            return getUser(username);
+        } else {
+            String nextNS = parts[parts.length-1];
+            if(!childNameserver.containsKey(nextNS)) {
+                return "Wrong username or user not registered.";
+            }
+            username = username.replace("." + nextNS, "");
+            return childNameserver.get(nextNS).lookup(username);
+        }
+    }
 
 	// vienna.at
 	// de
@@ -247,6 +249,7 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 
 	@Override
 	public String getUser(String user) throws RemoteException {
+	    System.out.println("Welcher user" + user);
 		if(userList.keySet().contains(user)) {
 			return userList.get(user);
 		}
