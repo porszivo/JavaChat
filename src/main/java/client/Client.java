@@ -131,6 +131,7 @@ public class Client implements IClientCli, Runnable {
             clientListenerTCP.close();
         } else if (nextMessage.contains("C2C_Successful_")) {
 
+            write(nextMessage);
             if (ctcServer != null) {
                 privMessageServer.close();
                 ctcServer = null;
@@ -143,6 +144,7 @@ public class Client implements IClientCli, Runnable {
 
 
         } else if (nextMessage.contains("!ack") || nextMessage.contains("!tampered")) { //Schreibfehler gewesen: Hattest !ark statt !ack
+            write(nextMessage);
             privMessageClient.close();
 
         } else if (nextMessage.contains("!msg_")) {

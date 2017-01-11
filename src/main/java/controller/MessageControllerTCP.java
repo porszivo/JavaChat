@@ -66,9 +66,9 @@ public class MessageControllerTCP implements Runnable {
                             channel = null;
                             return;
 
+                        }else {
+                            channel.send("Authenticate successful!".getBytes("UTF-8"));
                         }
-                        System.out.println(status);
-                        System.out.println("Authenticate successful!");
                         chatserverChallenge = null;
                         username = null;
                     }
