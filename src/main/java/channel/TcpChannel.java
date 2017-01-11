@@ -46,14 +46,11 @@ public class TcpChannel implements IChannel {
     }
 
     public void close(){
-        if(in != null){
+        if(socket != null && !socket.isClosed()) {
             try {
-
                 socket.close();
+            } catch (Exception e){
 
-
-            } catch (IOException e) {
-                e.printStackTrace();
             }
         }
 

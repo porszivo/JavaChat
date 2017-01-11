@@ -13,23 +13,10 @@ public class UserModel {
     private String password;
     private boolean isLoggedIn;
     private Socket socket;
-
-
-
-
     private MessageControllerTCP messageControllerTCP;
-
     private String adr;
     private int port;
     private String lastReceivedPrivateMessage;
-
-
-    public void setMessageControllerTCP(MessageControllerTCP messageControllerTCP) {
-        this.messageControllerTCP = messageControllerTCP;
-    }
-    public MessageControllerTCP getMessageControllerTCP() {
-        return messageControllerTCP;
-    }
 
 
     public UserModel(String name, String password) {
@@ -74,7 +61,12 @@ public class UserModel {
         socket = null;
         port = -1;
     }
-
+    public void setMessageControllerTCP(MessageControllerTCP messageControllerTCP) {
+        this.messageControllerTCP = messageControllerTCP;
+    }
+    public MessageControllerTCP getMessageControllerTCP() {
+        return messageControllerTCP;
+    }
     public synchronized void setAddress(String adr) {
 
         String parts[] = adr.split(":");

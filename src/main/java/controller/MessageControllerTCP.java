@@ -3,7 +3,6 @@ package controller;
 import channel.AesEncryption;
 import channel.IChannel;
 import channel.RsaEncryption;
-import com.sun.tools.internal.ws.wsdl.document.soap.SOAPUse;
 import model.UserMap;
 import model.UserModel;
 import nameserver.INameserverForChatserver;
@@ -37,7 +36,11 @@ public class MessageControllerTCP implements Runnable {
         this.userMap = userMap;
         this.rootNameserver = rootNameserver;
         channel = new RsaEncryption(socket);
-        ((RsaEncryption)channel).setPrivateKey(new Config("chatserver").getString("keys.dir") + "/chatserver.pem");
+        try {
+            ((RsaEncryption)channel).setPrivateKey(new Config("chatserver").getString("keys.dir") + "/chatserver.pem");
+        } catch (FileNotFoundException e) {
+            System.out.println("No such private key found");
+        }
     }
 
     @Override
@@ -50,16 +53,21 @@ public class MessageControllerTCP implements Runnable {
             while (true) {
 
                 String request = new String(channel.receive());
-                System.out.println("request: " + request);
 
                 if(chatserverChallenge!= null){
                     if (!Arrays.equals(chatserverChallenge,request.getBytes())){
                         System.out.println("ChatserverChallenge mismatch!");
                         return;
                     }else{
-                        //channel.send(login(username).getBytes());
+                        String status = login(username);
+                        if (status.equals("Already logged in.")) {
+                            channel.send(status.getBytes("UTF-8"));
+                            channel = null;
+                            return;
+
+                        }
+                        System.out.println(status);
                         System.out.println("Authenticate successful!");
-                        System.out.println(login(username));
                         chatserverChallenge = null;
                         username = null;
                     }
@@ -82,32 +90,29 @@ public class MessageControllerTCP implements Runnable {
                     case "!send":
 
                         String response = send(request);
-                        System.out.println(response);
                         channel.send(response.getBytes("UTF-8"));
                         break;
-                        /*
-                    case "!logout":
-                         out.println(logout());
+                    case "!register":
+                        channel.send(register(request.replace("register ","")).getBytes("UTF-8"));
                         break;
-
-                    case "!msg":
+                    case "!lookup":
+                        channel.send(lookup(request.replace("!lookup ", "")).getBytes("UTF-8"));
+                        break;
+                    case "!logout":
+                        channel.send(logout().getBytes("UTF-8"));
+                        break;
+                    case "!lastMsg":
+                        channel.send(lastMsg().getBytes("UTF-8"));
+                        break;
+                    /*case "!msg":
                         if (cmd.length > 3) {
                             String message = request.replace("!msg " + cmd[1] + " ", "");
-                             out.println(msg(cmd[1]) + "_" + message);
+                             channel.send(msg(cmd[1]) + "_" + message);
                         } else {
                             out.println("ERROR: Private message has wrong format");
                         }
-                        break;
-                    case "!lookup":
-                         out.println(lookup(request.replace("!lookup ", "")));
-                        break;
-                    case "!register":
-                         out.println(register(request));
-                        break;
-                    case "!lastMsg":
-                         out.println(lastMsg());
-                        break;
-                    */
+                        break;*/
+
                     default:
                          //System.out.println("Command does not have the expected format or is unknown!\n" );//+ request);
                         break;
@@ -160,20 +165,13 @@ public class MessageControllerTCP implements Runnable {
         message = message.replace("!send ", "");
         System.out.println("Anzahl  online user:" + userMap.getOnlineUser().size());
         for (UserModel user : userMap.getOnlineUser()) {
-            user.getMessageControllerTCP().receiceMessage(message);
-    /*
-            PrintWriter socketOut = new PrintWriter(user.getSocket().getOutputStream(), true);
-            socketOut.println(message);
-            */
+            user.getMessageControllerTCP().receiveMessage(message);
             user.setLastReceivedPrivateMessage(message);
-
-
-
         }
         return "Message sent to all online Users!";
     }
 
-    public void receiceMessage(String message){
+    public void receiveMessage(String message){
         try {
             channel.send(message.getBytes("UTF-8"));
         } catch (UnsupportedEncodingException e) {

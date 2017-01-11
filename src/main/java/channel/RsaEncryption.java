@@ -8,6 +8,7 @@ import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.Socket;
 import java.security.InvalidKeyException;
@@ -15,7 +16,7 @@ import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 
 
-public class RsaEncryption implements IChannel{
+public class RsaEncryption implements IChannel {
 
     private Key publicKey;
     private Key privateKey;
@@ -25,17 +26,16 @@ public class RsaEncryption implements IChannel{
     private final static String RSA_ALGORITHM = "RSA/NONE/OAEPWithSHA256AndMGF1Padding";
 
 
-    public RsaEncryption(Socket socket){
+    public RsaEncryption(Socket socket) {
         this.base64Channel = new Base64Channel(socket);
         try {
-          cipher = Cipher.getInstance(RSA_ALGORITHM);
+            cipher = Cipher.getInstance(RSA_ALGORITHM);
         } catch (NoSuchAlgorithmException e) {
             e.printStackTrace();
         } catch (NoSuchPaddingException e) {
             e.printStackTrace();
         }
     }
-
 
 
     @Override
@@ -65,7 +65,7 @@ public class RsaEncryption implements IChannel{
         byte[] messageToDecrypt = base64Channel.receive();
         byte[] decryptedMessage = null;
         try {
-            cipher.init(Cipher.DECRYPT_MODE,privateKey);
+            cipher.init(Cipher.DECRYPT_MODE, privateKey);
             decryptedMessage = cipher.doFinal(messageToDecrypt);
         } catch (InvalidKeyException e) {
             e.printStackTrace();
@@ -87,20 +87,17 @@ public class RsaEncryption implements IChannel{
         }
     }
 
-    public void setPrivateKey(String pathToPrivateKey) {
+    public void setPrivateKey(String pathToPrivateKey) throws FileNotFoundException {
         try {
             this.privateKey = Keys.readPrivatePEM(new File(pathToPrivateKey));
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new FileNotFoundException();
         }
     }
 
 
-    public void close(){
-        System.out.println("starting rsa close");
-
+    public void close() {
         base64Channel.close();
-        System.out.println("close rsa");
 
     }
 
