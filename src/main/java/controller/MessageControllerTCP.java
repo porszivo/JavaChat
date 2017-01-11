@@ -54,6 +54,7 @@ public class MessageControllerTCP implements Runnable {
 
                 String request = new String(channel.receive());
 
+
                 if(chatserverChallenge!= null){
                     if (!Arrays.equals(chatserverChallenge,request.getBytes())){
                         System.out.println("ChatserverChallenge mismatch!");
@@ -105,12 +106,11 @@ public class MessageControllerTCP implements Runnable {
                         channel.send(lastMsg().getBytes("UTF-8"));
                         break;
                     case "!msg":
-                        if (cmd.length > 3) {
+                        //"!msg " + username + " " + user + ": " + message
+
                             String message = request.replace("!msg " + cmd[1] + " ", "");
                              channel.send((msg(cmd[1]) + " " + message).getBytes("UTF-8"));
-                        } else {
-                            out.println("ERROR: Private message has wrong format");
-                        }
+
                         break;
 
                     default:
@@ -163,7 +163,6 @@ public class MessageControllerTCP implements Runnable {
 
     public String send(String message) throws IOException {
         message = message.replace("!send ", "");
-        System.out.println("Anzahl  online user:" + userMap.getOnlineUser().size());
         for (UserModel user : userMap.getOnlineUser()) {
             user.getMessageControllerTCP().receiveMessage(message);
             user.setLastReceivedPrivateMessage(message);
@@ -180,9 +179,10 @@ public class MessageControllerTCP implements Runnable {
     }
 
     public String msg(String username) throws IOException {
+        System.out.println("server msg: " + username);
         String output = lookup(username);
         if (output.equals("Wrong username or user not registered.")) return "Wrong username or user not reachable.";
-        return "!msg_  " + output;
+        return "!msg_ " + output;
     }
 
     public String lookup(String username) throws IOException {
@@ -197,7 +197,6 @@ public class MessageControllerTCP implements Runnable {
 
     public String register(String privateAddress) throws IOException, AlreadyRegisteredException, InvalidDomainException {
         privateAddress = privateAddress.replace("!register ", "");
-        System.out.println(user.getName()+ " privateaddress: " + privateAddress);
 
         String[] parts = privateAddress.split(":");
 
@@ -205,7 +204,7 @@ public class MessageControllerTCP implements Runnable {
         user.setAddress(privateAddress);
         rootNameserver.registerUser(user.getName(), privateAddress);
 
-        return "C2C_Successful_" + user.getPort();
+        return "C2C_Successful_ " + user.getPort();
 
     }
 

@@ -92,7 +92,7 @@ public class Client implements IClientCli, Runnable {
 
             pool = Executors.newCachedThreadPool();
 
-        } catch(IOException e) {
+        } catch (IOException e) {
             System.out.println(e.getMessage());
         }
 
@@ -120,154 +120,67 @@ public class Client implements IClientCli, Runnable {
 
     private void checkOutput(String nextMessage) {
 
-        System.out.println("Die erhaltene Message vom chatserver: " + nextMessage);
-
         String[] cmd = nextMessage.split("\\s");
 
-        switch (cmd[0]) {
-            case "!ok":
-                ok(cmd[1], cmd[2], cmd[3], cmd[4]);
-                break;
 
-            case "dummy":
-                break;
+        if (nextMessage.contains("!ok")) {
+            ok(cmd[1], cmd[2], cmd[3], cmd[4]);
+        } else if (nextMessage.contains("dummy")) {
 
-            case "Already":
-                clientListenerTCP.close();
-
-            case "C2C_Successful_":
-
-                if(ctcServer != null) {
-                    privMessageServer.close();
-                    ctcServer = null;
-                }
-
-                String[] parts = nextMessage.split("_");
-                privMessageServer = new ClientToClientChannel(Integer.parseInt(parts[2]), this, true);
-                ctcServer = new Thread(privMessageServer);
-                ctcServer.start();
-
-            /*else if (nextMessage.contains("!ack") || nextMessage.contains("!tampered")) { //Schreibfehler gewesen: Hattest !ark statt !ack
-                //userResponseStream.println("!ack");
-                privMessageClient.close();
-
-            }*/
-
-            case "!msg_":
-
-                    //"!msg_" + username + "_> " + user + ": " + message)
-
-                    //Splitting to get Address
-                    String[] partsMsg = nextMessage.split("_");
-                    String[] adr   = partsMsg[1].split(":");
-
-                    //Splitting to get Message
-                    //String messageParts[] = parts[2].split(" ");
-                    //String message = parts[2].substring(messageParts[1].length() +2);
-
-                    try {
-                        //sign Message with HMAC
-                        String encryptedMessage = addHMAC(partsMsg[2]);
-                        privMessageClient = new ClientToClientChannel(adr[0], Integer.parseInt(adr[1]), this, false);
-                        ctcClient = new Thread(privMessageClient);
-                        ctcClient.start();
-                        privMessageClient.send(encryptedMessage);
-                        //return encryptedMessage;
-                    } catch (IOException e) {
-                        System.out.println(e.getMessage());
-                    } catch (InvalidKeyException e) {
-                        System.out.println(e.getMessage());
-                    } catch (NoSuchAlgorithmException e){
-                        System.out.println(e.getMessage());
-                    }
-                    /*
-                    System.out.println("Hallooo msg funkttt");
-                    String[] parts = nextMessage.split("_");
-                    String[] adr = parts[1].split(":");
-                    System.out.println("Output bei msg:" + adr[0] + Integer.parseInt(adr[1]));
-                    Socket socket = new Socket(parts[0],Integer.parseInt(parts[1]));
-                    //privMessageClient = new ClientToClientChannel(adr[0], Integer.parseInt(adr[1]), this, false);
-                    // privMessageClient.send(parts[2]);
-                    channel = new Base64Channel(socket);
-                    byte[] message = (user + " " + parts[3]).getBytes("UTF-8");
-
-                    //return parts[2].replace(">", "<");
-
-
-                    ClientListenerTCP clientListenerTCP = new ClientListenerTCP(channel, this, messageQueue);
-                    new Thread(clientListenerTCP).start();
-
-                    channel.send(message);*/
-
-            default:
-                write(nextMessage);
-
-        }
-
-       /*
-        if (nextMessage.equals("Successfully logged in.")) {
-
-            isLoggedIn = true;
-
-        } else if (nextMessage.equals("Successfully logged out.")) {
-
-            isLoggedIn = false;
-
+        } else if (nextMessage.contains("Already")) {
+            clientListenerTCP.close();
         } else if (nextMessage.contains("C2C_Successful_")) {
 
-            if(ctcServer != null) {
+            if (ctcServer != null) {
                 privMessageServer.close();
                 ctcServer = null;
             }
 
-            String[] parts = nextMessage.split("_");
-            privMessageServer = new ClientToClientChannel(Integer.parseInt(parts[2]), this, true);
+            //String[] parts = nextMessage.split(" ");
+            privMessageServer = new ClientToClientChannel(Integer.parseInt(cmd[1]), this, true);
             ctcServer = new Thread(privMessageServer);
             ctcServer.start();
 
-            return "Successfully registered address for " + user;
 
         } else if (nextMessage.contains("!ack") || nextMessage.contains("!tampered")) { //Schreibfehler gewesen: Hattest !ark statt !ack
-            //userResponseStream.println("!ack");
             privMessageClient.close();
 
-        } else if (nextMessage.contains("!msg")) {
+        } else if (nextMessage.contains("!msg_")) {
 
             //"!msg_" + username + "_> " + user + ": " + message)
 
-            //Splitting to get Address
-            String[] parts = nextMessage.split("_");
-            String[] adr   = parts[1].split(":");
 
-            //Splitting to get Message
-            //String messageParts[] = parts[2].split(" ");
-            //String message = parts[2].substring(messageParts[1].length() +2);
+            String[] adr = cmd[1].split(":");
+            String message = nextMessage.substring(cmd[1].length() + 7);
+
 
             try {
                 //sign Message with HMAC
-                String encryptedMessage = addHMAC(parts[2]);
+                String encryptedMessage = addHMAC(message);
                 privMessageClient = new ClientToClientChannel(adr[0], Integer.parseInt(adr[1]), this, false);
                 ctcClient = new Thread(privMessageClient);
                 ctcClient.start();
                 privMessageClient.send(encryptedMessage);
-                return encryptedMessage;
+                //return encryptedMessage;
             } catch (IOException e) {
                 System.out.println(e.getMessage());
             } catch (InvalidKeyException e) {
                 System.out.println(e.getMessage());
-            } catch (NoSuchAlgorithmException e){
+            } catch (NoSuchAlgorithmException e) {
                 System.out.println(e.getMessage());
             }
-*/
+        } else {
+            write(nextMessage);
+        }
+
     }
 
 
-
-    private String addHMAC(String message) throws IOException, NoSuchAlgorithmException, InvalidKeyException {
+    private String addHMAC(String message) throws IOException, InvalidKeyException, NoSuchAlgorithmException {
 
         byte[] hashMac = generateHMAC(message);
 
-        if(hashMac == null) {
+        if (hashMac == null) {
             return message;
         }
 
@@ -373,7 +286,7 @@ public class Client implements IClientCli, Runnable {
     @Command
     @Override
     public String msg(String username, String message) throws IOException {
-        if (isLoggedIn) channel.send(("!msg " + username + user + ": " + message).getBytes());
+        if (isLoggedIn) channel.send(("!msg " + username + " " + user + ": " + message).getBytes());
         else return "Not logged in.";
         return null;
     }
@@ -411,8 +324,8 @@ public class Client implements IClientCli, Runnable {
         //channel.close();
         //clientSocket.close();
         shell.close();
-        if(ctcServer != null) ctcServer.interrupt();
-        if(ctcClient != null) ctcClient.interrupt();
+        if (ctcServer != null) ctcServer.interrupt();
+        if (ctcClient != null) ctcClient.interrupt();
         userResponseStream.close();
         userRequestStream.close();
         user = null;
