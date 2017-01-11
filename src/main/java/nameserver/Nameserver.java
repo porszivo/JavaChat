@@ -54,7 +54,6 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 		this.userRequestStream = userRequestStream;
 		this.userResponseStream = userResponseStream;
 
-		// TODO
 		this.bindingName = config.getString("root_id");
 		this.rmiHost = config.getString("registry.host");
 		this.rmiPort = config.getInt("registry.port");
@@ -152,7 +151,6 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 	public static void main(String[] args) {
 		Nameserver nameserver = new Nameserver(args[0], new Config(args[0]),
 				System.in, System.out);
-		// TODO: start the nameserver
 		new Thread(nameserver).start();
 	}
 
@@ -249,7 +247,6 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 
 	@Override
 	public String getUser(String user) throws RemoteException {
-	    System.out.println("Welcher user" + user);
 		if(userList.keySet().contains(user)) {
 			return userList.get(user);
 		}
