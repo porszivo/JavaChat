@@ -43,9 +43,9 @@ public class Client implements IClientCli, Runnable {
 
     private Thread ctcServer = null;
 
-    private BufferedReader in;
-    private BufferedReader stdIn;
-    private PrintWriter out;
+    //private BufferedReader in;
+    //private BufferedReader stdIn;
+    //private PrintWriter out;
 
 
     private String user = null;
@@ -81,9 +81,9 @@ public class Client implements IClientCli, Runnable {
 
             clientSocket = new Socket(serverHost, tcpPortNumber);
             datagramSocket = new DatagramSocket();
-            in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));  // messages received by server
-            stdIn = new BufferedReader(new InputStreamReader(System.in));  // user input
-            out = new PrintWriter(clientSocket.getOutputStream(), true);  // send data through the clientSocket
+            //in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));  // messages received by server
+            //stdIn = new BufferedReader(new InputStreamReader(System.in));  // user input
+            //out = new PrintWriter(clientSocket.getOutputStream(), true);  // send data through the clientSocket
 
 
             pool = Executors.newCachedThreadPool();
@@ -108,13 +108,14 @@ public class Client implements IClientCli, Runnable {
 
         while (true) {
             if (messageQueue.peek() != null) {
-                write(checkOutput(getNextMessage()));
+                //write(
+                        checkOutput(getNextMessage());
             }
         }
 
     }
 
-    private String checkOutput(String nextMessage) {
+    private void checkOutput(String nextMessage) {
 
         String[] cmd = nextMessage.split("\\s");
 
@@ -126,6 +127,10 @@ public class Client implements IClientCli, Runnable {
             case "dummy":
                 break;
 
+            case "Already":
+                clientListenerTCP.close();
+                default:
+                    write(nextMessage);
 
         }
 
@@ -171,7 +176,6 @@ public class Client implements IClientCli, Runnable {
         }
 
 */
-        return nextMessage;
 
     }
 
@@ -197,14 +201,14 @@ public class Client implements IClientCli, Runnable {
     @Command
     @Override
     public String login(String username, String password) throws IOException {
-        if (!isLoggedIn) {
-            out.println("!login " + username + " " + password);
-            user = username;
+        write("Login no longer available, please start with !authenticate <username>");
+            //out.println("!login " + username + " " + password);
+            //user = username;
+
             return null;
-        } else {
-            return "Already logged in.";
-        }
+
     }
+
 
     @Command
     @Override
@@ -224,7 +228,6 @@ public class Client implements IClientCli, Runnable {
     public String send(String message) throws IOException {
 
         channel.send(("!send " + user + ": " + message).getBytes());
-
 
         return null;
 
@@ -289,9 +292,11 @@ public class Client implements IClientCli, Runnable {
     @Override
     public String exit() throws IOException {
         logout();
-        in.close();
-        out.close();
-        clientSocket.close();
+        //in.close();
+        //out.close();
+        clientListenerTCP.close();
+        //channel.close();
+        //clientSocket.close();
         shell.close();
         if (ctcServer != null) ctcServer.interrupt();
         userResponseStream.close();
@@ -318,9 +323,15 @@ public class Client implements IClientCli, Runnable {
     @Override
     public String authenticate(String username) throws IOException {
 
-        this.user = username;
-        ((RsaEncryption) channel).setPrivateKey(new Config("client").getString("keys.dir") + "/" + username + ".pem");
+        try {
+            ((RsaEncryption) channel).setPrivateKey(new Config("client").getString("keys.dir") + "/" + username + ".pem");
 
+        }catch (FileNotFoundException e){
+            return "No such user, please enter an exiting user!";
+        }
+
+
+        this.user = username;
         encodedClientChallenge = generate32ByteRandomNumber();
         byte[] messageToEncrypt = ("!authenticate " + username + " " + new String(encodedClientChallenge)).getBytes("UTF-8");
 
@@ -350,7 +361,7 @@ public class Client implements IClientCli, Runnable {
         channel = new AesEncryption(clientSocket, originalKey, ivParameterSpec);
         clientListenerTCP.setChannel(channel);
         channel.send(chatserverChallenge.getBytes());
-
+        isLoggedIn = true;
 
     }
 
