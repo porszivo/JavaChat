@@ -101,6 +101,8 @@ public class ClientToClientChannel implements Runnable {
                     BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                     String request;
                     if((request = reader.readLine()) != null) {
+                        System.out.println("Message an client");
+                        System.out.println(client);
                         client.addNewMessage(request);
                         running = false;
                     }

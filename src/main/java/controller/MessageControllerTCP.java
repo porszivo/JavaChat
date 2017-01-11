@@ -53,7 +53,12 @@ public class MessageControllerTCP implements Runnable {
                     case "!msg":
                         if(cmd.length > 3) {
                             String message = request.replace("!msg " + cmd[1] + " ", "");
-                            out.println(msg(cmd[1]) + "_" + message);
+                            System.out.println(msg(cmd[1]));
+                            if(msg(cmd[1]).equals("Wrong username or user not reachable.")) {
+                                out.println(msg(cmd[1]));
+                            } else {
+                                out.println(msg(cmd[1]) + "_" + message);
+                            }
                         } else {
                             out.println("ERROR: Private message has wrong format");
                         }
