@@ -6,6 +6,7 @@ import cli.Shell;
 import listener.ClientListenerTCP;
 import org.bouncycastle.util.encoders.Base64;
 import util.Config;
+import util.Keys;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
@@ -39,6 +40,7 @@ public class Client implements IClientCli, Runnable {
     private ClientListenerTCP clientListenerTCP;
 
     private Thread ctcServer = null;
+    private Thread ctcClient = null;
 
     //private BufferedReader in;
     //private BufferedReader stdIn;
@@ -75,7 +77,6 @@ public class Client implements IClientCli, Runnable {
         this.serverHost = this.config.getString("chatserver.host");
         try {
 
-
             clientSocket = new Socket(serverHost, tcpPortNumber);
             datagramSocket = new DatagramSocket();
             //in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));  // messages received by server
@@ -85,8 +86,7 @@ public class Client implements IClientCli, Runnable {
 
             pool = Executors.newCachedThreadPool();
 
-
-        } catch (IOException e) {
+        } catch(IOException e) {
             System.out.println(e.getMessage());
         }
 
@@ -181,26 +181,72 @@ public class Client implements IClientCli, Runnable {
 
             return "Successfully registered address for " + user;
 
-        } else if (nextMessage.equals("!ark")) {
-
-                privMessageClient.close();
+        } else if (nextMessage.contains("!ack") || nextMessage.contains("!tampered")) { //Schreibfehler gewesen: Hattest !ark statt !ack
+            //userResponseStream.println("!ack");
+            privMessageClient.close();
 
         } else if (nextMessage.contains("!msg")) {
 
+            //"!msg_" + username + "_> " + user + ": " + message)
+
+            //Splitting to get Address
             String[] parts = nextMessage.split("_");
             String[] adr   = parts[1].split(":");
+
+            //Splitting to get Message
+            //String messageParts[] = parts[2].split(" ");
+            //String message = parts[2].substring(messageParts[1].length() +2);
+
             try {
+                //sign Message with HMAC
+                String encryptedMessage = addHMAC(parts[2]);
                 privMessageClient = new ClientToClientChannel(adr[0], Integer.parseInt(adr[1]), this, false);
-                privMessageClient.send(parts[2]);
-                return parts[2].replace(">", "<");
+                ctcClient = new Thread(privMessageClient);
+                ctcClient.start();
+                privMessageClient.send(encryptedMessage);
+                return encryptedMessage;
             } catch (IOException e) {
                 System.out.println(e.getMessage());
+            } catch (InvalidKeyException e) {
+                System.out.println(e.getMessage());
+            } catch (NoSuchAlgorithmException e){
+                System.out.println(e.getMessage());
             }
+*/
+    }
 
+
+
+    private String addHMAC(String message) throws IOException, NoSuchAlgorithmException, InvalidKeyException {
+
+        byte[] hashMac = generateHMAC(message);
+
+        if(hashMac == null) {
+            return message;
         }
 
-*/
+        byte[] encryptedMessage = Base64.encode(hashMac);
 
+        return new String(encryptedMessage) + " " + message;
+
+    }
+
+    private byte[] generateHMAC(String message) throws IOException, NoSuchAlgorithmException, InvalidKeyException {
+
+        Key key = Keys.readSecretKey(new File(config.getString("hmac.key")));
+
+        try {
+            Mac hMac = Mac.getInstance("HmacSHA256");
+            hMac.init(key);
+            hMac.update(message.getBytes());
+            byte[] hashMac = hMac.doFinal();
+
+            return hashMac;
+
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     private synchronized String getNextMessage() {
@@ -232,7 +278,6 @@ public class Client implements IClientCli, Runnable {
         return null;
 
     }
-
 
     @Command
     @Override
@@ -284,8 +329,6 @@ public class Client implements IClientCli, Runnable {
     public String msg(String username, String message) throws IOException {
         if (isLoggedIn) channel.send(("!msg " + username + " > " + user + ": " + message).getBytes());
         else return "Not logged in.";
-
-
         return null;
     }
 
@@ -322,7 +365,8 @@ public class Client implements IClientCli, Runnable {
         //channel.close();
         //clientSocket.close();
         shell.close();
-        if (ctcServer != null) ctcServer.interrupt();
+        if(ctcServer != null) ctcServer.interrupt();
+        if(ctcClient != null) ctcClient.interrupt();
         userResponseStream.close();
         userRequestStream.close();
         user = null;

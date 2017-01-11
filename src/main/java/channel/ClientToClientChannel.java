@@ -53,6 +53,8 @@ public class ClientToClientChannel implements Runnable {
             System.err.println("ERROR: Could not establish ClientToClientServer\n" + e.getMessage());
         }
 
+        this.running = true;
+
     }
 
     @Override
@@ -72,23 +74,31 @@ public class ClientToClientChannel implements Runnable {
                     if ((request = reader.readLine()) != null) {
 
                         String[] parts = request.split(" ");
-                        String receivedHMAC = parts[0];
 
+                        byte[] receivedHMAC = parts[0].getBytes();
                         byte[] decodedHMAC = Base64.decode(receivedHMAC);
 
                         try{
 
-                            byte[] computedHMAC = generateHMAC(request.substring(receivedHMAC.length()+1));
+                            byte[] computedHMAC = generateHMAC(request.substring(parts[0].length() + 1));
 
+                            /*byte[] hash = Base64.encode(computedHMAC);
+
+                            client.send("Received: " + new String(receivedHMAC));
+                            client.send("Generated: " + new String(hash));*/
+
+                            //Arrays.equals(h,h2)
                             if(MessageDigest.isEqual(decodedHMAC, computedHMAC)) {
                                 client.addNewMessage(request);
-                                writer.println(addHMAC("!ack"));
+                                writer.println(addHMAC("!ack " + request.substring(parts[0].length() + 1)));
                                 running = false;
                             } else {
                                 client.addNewMessage(request);
-                                writer.println(addHMAC("!tempered"));
+                                writer.println(addHMAC("!tampered " + request.substring(parts[0].length() + 1)));
                                 running = false;
                             }
+
+                            socket.close();
 
                         } catch (NoSuchAlgorithmException e) {
                             e.printStackTrace();
@@ -101,6 +111,7 @@ public class ClientToClientChannel implements Runnable {
                     BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                     String request;
                     if((request = reader.readLine()) != null) {
+                        //client.write(request);
                         client.addNewMessage(request);
                         running = false;
                     }
@@ -115,8 +126,6 @@ public class ClientToClientChannel implements Runnable {
 
     private String addHMAC(String message) throws IOException, NoSuchAlgorithmException, InvalidKeyException {
 
-        Key key = Keys.readSecretKey(new File(config.getString("hmac.key")));
-
         byte[] hashMac = generateHMAC(message);
 
         if(hashMac == null) {
@@ -125,7 +134,7 @@ public class ClientToClientChannel implements Runnable {
 
         byte[] encryptedMessage = Base64.encode(hashMac);
 
-        return encryptedMessage.toString() + " " + message;
+        return new String(encryptedMessage) + " " + message;
 
     }
 
