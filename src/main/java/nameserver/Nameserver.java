@@ -7,12 +7,10 @@ import java.rmi.*;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
-import java.util.ArrayList;
 import java.util.HashMap;
 
 import cli.Command;
 import cli.Shell;
-import model.UserModelNS;
 import nameserver.exceptions.AlreadyRegisteredException;
 import nameserver.exceptions.InvalidDomainException;
 import util.Config;
@@ -183,7 +181,6 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 		if(!childNameserver.containsKey(zone)) {
 			return null;
 		}
-		System.out.println("new zone" + zone);
 		return childNameserver.get(zone);
 	}
 
@@ -191,23 +188,13 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 	@Override
 	public String lookup(String username) throws RemoteException {
 		String[] parts = username.split("\\.");
-		String ret = "";
-		if(parts.length==1) {
-			for(String user : userList.keySet()) {
-				if(user.equals(username)) return userList.get(username.replace("\\.", ""));
-			}
-			return "";
-		} else {
-			String nextNS = parts[parts.length-1];
-
-			if(!childNameserver.containsKey(nextNS)) {
-				return "Zone not found.";
-			}
-
-			username = username.replace("." + nextNS, "");
-			ret = childNameserver.get(nextNS).lookup(username);
+		String user = parts[0];
+		INameserverForChatserver ns = this;
+		for(int i = parts.length-1; i > 0; i--) {
+			ns = getNameserver(parts[i]);
 		}
-		return ret;
+		if(ns==null) return "Wrong username or user not registered.";
+		return ns.getUser(user);
 	}
 
 	// vienna.at
@@ -261,10 +248,9 @@ public class Nameserver implements INameserverCli, Runnable, INameserver {
 	@Override
 	public String getUser(String user) throws RemoteException {
 		if(userList.keySet().contains(user)) {
-			System.out.println(user);
 			return userList.get(user);
 		}
-		return "";
+		return "Wrong username or user not registered.";
 	}
 
 }
