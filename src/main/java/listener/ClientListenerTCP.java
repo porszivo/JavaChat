@@ -42,14 +42,6 @@ public class ClientListenerTCP implements Runnable {
                 receiveMessage(input);
             } catch (IOException e) {
             }
-
-            /*
-            try {
-                String input = channel.receive();
-                if((input = in.readLine()) != null) receiveMessage(input);
-            } catch (IOException e) {
-            }
-            */
         }
     }
 
@@ -58,16 +50,13 @@ public class ClientListenerTCP implements Runnable {
     }
 
     public void setChannel(IChannel channel) {
-        //running = true;
+
         this.channel = channel;
-        //running = false;
     }
 
     public void close() {
-        System.out.println("starting close");
         channel.close();
         running = true;
-        System.out.println("close listener");
     }
 
 }
