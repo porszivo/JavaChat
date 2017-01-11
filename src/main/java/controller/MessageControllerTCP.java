@@ -93,7 +93,7 @@ public class MessageControllerTCP implements Runnable {
                         channel.send(response.getBytes("UTF-8"));
                         break;
                     case "!register":
-                        channel.send(register(request.replace("register ","")).getBytes("UTF-8"));
+                        channel.send(register(request).getBytes("UTF-8"));
                         break;
                     case "!lookup":
                         channel.send(lookup(request.replace("!lookup ", "")).getBytes("UTF-8"));
@@ -104,14 +104,14 @@ public class MessageControllerTCP implements Runnable {
                     case "!lastMsg":
                         channel.send(lastMsg().getBytes("UTF-8"));
                         break;
-                    /*case "!msg":
+                    case "!msg":
                         if (cmd.length > 3) {
                             String message = request.replace("!msg " + cmd[1] + " ", "");
-                             channel.send(msg(cmd[1]) + "_" + message);
+                             channel.send((msg(cmd[1]) + " " + message).getBytes("UTF-8"));
                         } else {
                             out.println("ERROR: Private message has wrong format");
                         }
-                        break;*/
+                        break;
 
                     default:
                         //System.out.println("Command does not have the expected format or is unknown!\n" );//+ request);
@@ -182,7 +182,7 @@ public class MessageControllerTCP implements Runnable {
     public String msg(String username) throws IOException {
         String output = lookup(username);
         if (output.equals("Wrong username or user not registered.")) return "Wrong username or user not reachable.";
-        return "!msg_" + output;
+        return "!msg_  " + output;
     }
 
     public String lookup(String username) throws IOException {
@@ -196,8 +196,9 @@ public class MessageControllerTCP implements Runnable {
     }
 
     public String register(String privateAddress) throws IOException, AlreadyRegisteredException, InvalidDomainException {
-
         privateAddress = privateAddress.replace("!register ", "");
+        System.out.println(user.getName()+ " privateaddress: " + privateAddress);
+
         String[] parts = privateAddress.split(":");
 
         if (parts.length != 2) return "Address is not in a valid format.";
