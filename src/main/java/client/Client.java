@@ -135,12 +135,56 @@ public class Client implements IClientCli, Runnable {
             case "Already":
                 clientListenerTCP.close();
 
-            case "!msg_":
-                System.out.println("Hallooo msg funkttt");
+            case "C2C_Successful_":
+
+                if(ctcServer != null) {
+                    privMessageServer.close();
+                    ctcServer = null;
+                }
+
                 String[] parts = nextMessage.split("_");
-                String[] adr = parts[1].split(":");
-                System.out.println("Output bei msg:" + adr[0] + Integer.parseInt(adr[1]));
-                try {
+                privMessageServer = new ClientToClientChannel(Integer.parseInt(parts[2]), this, true);
+                ctcServer = new Thread(privMessageServer);
+                ctcServer.start();
+
+            /*else if (nextMessage.contains("!ack") || nextMessage.contains("!tampered")) { //Schreibfehler gewesen: Hattest !ark statt !ack
+                //userResponseStream.println("!ack");
+                privMessageClient.close();
+
+            }*/
+
+            case "!msg_":
+
+                    //"!msg_" + username + "_> " + user + ": " + message)
+
+                    //Splitting to get Address
+                    String[] partsMsg = nextMessage.split("_");
+                    String[] adr   = partsMsg[1].split(":");
+
+                    //Splitting to get Message
+                    //String messageParts[] = parts[2].split(" ");
+                    //String message = parts[2].substring(messageParts[1].length() +2);
+
+                    try {
+                        //sign Message with HMAC
+                        String encryptedMessage = addHMAC(partsMsg[2]);
+                        privMessageClient = new ClientToClientChannel(adr[0], Integer.parseInt(adr[1]), this, false);
+                        ctcClient = new Thread(privMessageClient);
+                        ctcClient.start();
+                        privMessageClient.send(encryptedMessage);
+                        //return encryptedMessage;
+                    } catch (IOException e) {
+                        System.out.println(e.getMessage());
+                    } catch (InvalidKeyException e) {
+                        System.out.println(e.getMessage());
+                    } catch (NoSuchAlgorithmException e){
+                        System.out.println(e.getMessage());
+                    }
+                    /*
+                    System.out.println("Hallooo msg funkttt");
+                    String[] parts = nextMessage.split("_");
+                    String[] adr = parts[1].split(":");
+                    System.out.println("Output bei msg:" + adr[0] + Integer.parseInt(adr[1]));
                     Socket socket = new Socket(parts[0],Integer.parseInt(parts[1]));
                     //privMessageClient = new ClientToClientChannel(adr[0], Integer.parseInt(adr[1]), this, false);
                     // privMessageClient.send(parts[2]);
@@ -153,12 +197,8 @@ public class Client implements IClientCli, Runnable {
                     ClientListenerTCP clientListenerTCP = new ClientListenerTCP(channel, this, messageQueue);
                     new Thread(clientListenerTCP).start();
 
-                    channel.send(message);
+                    channel.send(message);*/
 
-
-                } catch (IOException e) {
-                    System.out.println(e.getMessage());
-                }
             default:
                 write(nextMessage);
 
@@ -333,7 +373,7 @@ public class Client implements IClientCli, Runnable {
     @Command
     @Override
     public String msg(String username, String message) throws IOException {
-        if (isLoggedIn) channel.send(("!msg " + username + " > " + user + ": " + message).getBytes());
+        if (isLoggedIn) channel.send(("!msg " + username + user + ": " + message).getBytes());
         else return "Not logged in.";
         return null;
     }
