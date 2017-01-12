@@ -131,7 +131,7 @@ public class Client implements IClientCli, Runnable {
             clientListenerTCP.close();
         } else if (nextMessage.contains("C2C_Successful_")) {
 
-            write(nextMessage);
+            write("Registration was successful.");
             if (ctcServer != null) {
                 privMessageServer.close();
                 ctcServer = null;
